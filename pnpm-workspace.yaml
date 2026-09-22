@@ -1,0 +1,13 @@
+pmOnFail: ignore
+
+minimumReleaseAgeExclude:
+  - '@next/*'
+  - next
+
+allowBuilds:
+  '@sentry/cli': true
+
+# Force a patched transitive dependency (SSRF/trust-boundary advisory
+# GHSA-mwp4-54f8-5fhr, reached only via imapflow>socks). See runbook §4.4.
+overrides:
+  ip-address: '>=10.3.1'

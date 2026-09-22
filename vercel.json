@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/expiry-reminders",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/renewals",
+      "schedule": "30 7 * * *"
+    },
+    {
+      "path": "/api/cron/scan-invoices",
+      "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/cron/sync-feeds",
+      "schedule": "15 */3 * * *"
+    }
+  ]
+}

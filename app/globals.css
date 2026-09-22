@@ -1,0 +1,137 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-primary-dim: var(--primary-dim);
+  --color-primary-muted: var(--primary-muted);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-panel: var(--panel);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+:root {
+  color-scheme: dark;
+  --radius: 0.625rem;
+
+  --background: #0a0f11;
+  --foreground: #ffffff;
+  --surface: #0f1719;
+  --surface-2: #131b1d;
+  --panel: #0e1517;
+  --card: #0f1719;
+  --card-foreground: #ffffff;
+  --popover: #0f1719;
+  --popover-foreground: #ffffff;
+
+  --primary: #5fb3a1;
+  --primary-foreground: #0a0f11;
+  --primary-dim: #0d2b28;
+  --primary-muted: #8fc0b6;
+
+  --secondary: #131b1d;
+  --secondary-foreground: #ffffff;
+  --muted: #131b1d;
+  --muted-foreground: #7d8f95;
+  --accent: #0d2b28;
+  --accent-foreground: #5fb3a1;
+
+  --destructive: #e86a5a;
+  --danger: #e86a5a;
+  --warning: #d9a441;
+
+  --border: #232e32;
+  --border-strong: #2b5a52;
+  --input: #232e32;
+  --ring: #5fb3a1;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    background: var(--background);
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Mono label helper used throughout the UI */
+.mono-label {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+@keyframes slidein {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-slidein {
+  animation: slidein 0.35s ease;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+
+.app-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #5fb3a1 #131b1d;
+}
+.app-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.app-scroll::-webkit-scrollbar-thumb {
+  background: #2b5a52;
+  border-radius: 3px;
+}
