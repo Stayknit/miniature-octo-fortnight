@@ -1,6 +1,6 @@
 'use client'
 
-import { acknowledgeBooking, addBlock, addDirectBooking, cancelDirectBooking } from '@/app/actions/stayknit'
+import { acknowledgeBooking, addBlock, addDirectBooking, cancelDirectBooking, removeProperty } from '@/app/actions/stayknit'
 import { Field, Modal, inputClass } from '@/components/modal'
 import { channelLogin, channelTint, dateRange, openChannelLogin } from '@/lib/format'
 import { useMoney, useCurrencySymbol } from '@/components/currency-context'
@@ -194,6 +194,7 @@ export function TodayScreen({ data, onNavigate }: { data: StayKnitData; onNaviga
             setViewing(v)
             setViewOpen(false)
           }}
+          onRemoved={(name) => setViewing((v) => (v === name ? ALL : v))}
           onClose={() => setViewOpen(false)}
         />
       )}
@@ -497,12 +498,14 @@ function ViewingPicker({
   locked,
   current,
   onPick,
+  onRemoved,
   onClose,
 }: {
   data: StayKnitData
   locked: Set<string>
   current: string
   onPick: (v: string) => void
+  onRemoved: (name: string) => void
   onClose: () => void
 }) {
   const hasLocked = locked.size > 0
@@ -513,19 +516,23 @@ function ViewingPicker({
       </p>
       <div className="flex flex-col gap-2">
         <PickRow label={ALL} sub="Whole portfolio" active={current === ALL} onClick={() => onPick(ALL)} />
-        {data.properties.map((p) =>
-          locked.has(p.name) ? (
-            <LockedRow key={p.id} label={p.name} sub={p.ownerName || 'Unassigned'} />
-          ) : (
-            <PickRow
-              key={p.id}
-              label={p.name}
-              sub={p.ownerName || 'Unassigned'}
-              active={current === p.name}
-              onClick={() => onPick(p.name)}
-            />
-          ),
-        )}
+        {data.properties.map((p) => (
+          <div key={p.id} className="flex items-stretch gap-2">
+            <div className="min-w-0 flex-1">
+              {locked.has(p.name) ? (
+                <LockedRow label={p.name} sub={p.ownerName || 'Unassigned'} />
+              ) : (
+                <PickRow
+                  label={p.name}
+                  sub={p.ownerName || 'Unassigned'}
+                  active={current === p.name}
+                  onClick={() => onPick(p.name)}
+                />
+              )}
+            </div>
+            <RemoveUnitButton propertyId={p.id} name={p.name} onRemoved={onRemoved} />
+          </div>
+        ))}
       </div>
       {hasLocked && (
         <p className="mono-label mt-4 rounded-lg border border-primary/40 bg-primary-dim px-3 py-2.5 text-[10px] leading-relaxed text-primary">
@@ -533,6 +540,48 @@ function ViewingPicker({
         </p>
       )}
     </Modal>
+  )
+}
+
+// Delete a listing for good. Two-tap confirm (matches the client/booking remove
+// pattern) so a stray tap can't wipe a unit. Removing a listing also clears its
+// bookings and feeds server-side and recomputes the plan lock, so a host who
+// added extra units on the trial can delete down under the cap.
+function RemoveUnitButton({
+  propertyId,
+  name,
+  onRemoved,
+}: {
+  propertyId: number
+  name: string
+  onRemoved: (name: string) => void
+}) {
+  const [arm, setArm] = useState(false)
+  const [busy, setBusy] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (!arm) {
+          setArm(true)
+          return
+        }
+        setBusy(true)
+        removeProperty(propertyId)
+          .then(() => onRemoved(name))
+          .finally(() => setBusy(false))
+      }}
+      disabled={busy}
+      aria-label={arm ? `Confirm removing ${name}` : `Remove ${name}`}
+      className={`mono-label flex min-h-[44px] w-11 shrink-0 items-center justify-center rounded-lg border text-[8px] transition-colors disabled:opacity-60 ${
+        arm
+          ? 'border-danger bg-danger/10 text-danger'
+          : 'border-border text-muted-foreground hover:border-danger hover:text-danger'
+      }`}
+      onBlur={() => setArm(false)}
+    >
+      {arm ? <Check size={15} /> : <Trash2 size={15} />}
+    </button>
   )
 }
 
