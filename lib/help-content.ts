@@ -55,8 +55,9 @@ export const HOST_TOPICS: Topic[] = [
       { text: 'Open the Calendar tab to see all of your units across the month.' },
       { text: 'Bookings and blocks from every connected site are merged into one view.' },
       { text: 'Tap a direct booking to edit its dates or guest, or to cancel it.', note: 'Stays imported from a listing site are managed on that site, not here.' },
+      { text: 'Under “Channel bookings”, tap a stay to enter its price.', note: 'iCal feeds never send the amount a guest paid, so imported stays arrive with no price. Add it here and it counts on statements and owner payouts — and it sticks through every future sync.' },
     ],
-    keywords: 'calendar month grid view edit direct booking cancel merged',
+    keywords: 'calendar month grid view edit direct booking cancel merged channel booking price amount statement payout ical no price',
   },
   {
     id: 'add-property',

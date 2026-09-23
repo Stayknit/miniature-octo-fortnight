@@ -1,6 +1,6 @@
 'use client'
 
-import { updateDirectBooking, cancelDirectBooking } from '@/app/actions/stayknit'
+import { updateDirectBooking, cancelDirectBooking, setBookingPrice } from '@/app/actions/stayknit'
 import { Modal, Field, inputClass } from '@/components/modal'
 import { useMoney, useCurrencySymbol } from '@/components/currency-context'
 import { channelTint, dateRange } from '@/lib/format'
@@ -41,6 +41,7 @@ export function CalendarScreen({ data }: { data: StayKnitData }) {
   const DEMO_TODAY = todayParts()
   const [filter, setFilter] = useState('All units')
   const [editing, setEditing] = useState<Booking | null>(null)
+  const [pricing, setPricing] = useState<Booking | null>(null)
   const [view, setView] = useState({ year: DEMO_TODAY.year, month: DEMO_TODAY.month })
   const properties = data.properties
   const shown = filter === 'All units' ? properties : properties.filter((p) => p.name === filter)
@@ -73,6 +74,16 @@ export function CalendarScreen({ data }: { data: StayKnitData }) {
     const names = new Set(shown.map((p) => p.name))
     return data.bookings
       .filter((b) => b.channel === 'DIRECT' && names.has(b.propertyName))
+      .sort((a, b) => a.checkIn.localeCompare(b.checkIn))
+  }, [shown, data.bookings])
+
+  // Imported reservations pulled from listing-site iCal feeds. Their dates and
+  // guest are owned by the feed (read-only), but the price never comes over
+  // iCal — the host sets it here so the stay counts on statements and payouts.
+  const channelBookings = useMemo(() => {
+    const names = new Set(shown.map((p) => p.name))
+    return data.bookings
+      .filter((b) => b.channel !== 'DIRECT' && b.status !== 'block' && names.has(b.propertyName))
       .sort((a, b) => a.checkIn.localeCompare(b.checkIn))
   }, [shown, data.bookings])
 
@@ -301,6 +312,38 @@ export function CalendarScreen({ data }: { data: StayKnitData }) {
         </div>
       </div>
 
+      {/* Channel bookings — dates sync from the listing site; price entered here */}
+      <div className="px-5 lg:px-8">
+        <div className="flex items-baseline justify-between">
+          <h2 className="font-sans text-base font-bold">Channel bookings</h2>
+          <span className="mono-label text-[10px] text-muted-foreground">
+            {channelBookings.length} {channelBookings.length === 1 ? 'stay' : 'stays'}
+          </span>
+        </div>
+        <p className="mono-label mt-1 text-[10px] leading-relaxed text-muted-foreground">
+          Dates sync from the listing site. iCal never sends the price &mdash; tap a stay to add it so it counts on
+          statements &amp; payouts.
+        </p>
+
+        <div className="mt-3 flex flex-col gap-2 pb-4">
+          {channelBookings.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border bg-surface-2/40 px-4 py-6 text-center">
+              <p className="text-[13px] text-muted-foreground">No channel bookings for this view.</p>
+              <p className="mono-label mt-1 text-[9px] text-muted-foreground">Imported stays appear here after a sync.</p>
+            </div>
+          ) : (
+            channelBookings.map((b) => (
+              <ChannelBookingRow
+                key={b.id}
+                booking={b}
+                isClash={clashes.has(b.id)}
+                onSetPrice={() => setPricing(b)}
+              />
+            ))
+          )}
+        </div>
+      </div>
+
       {editing && (
         <EditDirectBookingModal
           data={data}
@@ -308,6 +351,7 @@ export function CalendarScreen({ data }: { data: StayKnitData }) {
           onClose={() => setEditing(null)}
         />
       )}
+      {pricing && <SetPriceModal booking={pricing} onClose={() => setPricing(null)} />}
     </div>
   )
 }
@@ -475,6 +519,125 @@ function EditDirectBookingModal({
           style={{ background: hasClash ? 'var(--danger)' : 'var(--primary)' }}
         >
           {saving ? 'Saving…' : hasClash ? 'Save anyway' : 'Save changes'}
+        </button>
+      </form>
+    </Modal>
+  )
+}
+
+// An imported channel reservation. Dates and guest are owned by the listing
+// site's feed and stay read-only; the host can only set the price, which iCal
+// never carries. A stay with no price yet is nudged with a "Set price" pill.
+function ChannelBookingRow({
+  booking,
+  isClash,
+  onSetPrice,
+}: {
+  booking: Booking
+  isClash: boolean
+  onSetPrice: () => void
+}) {
+  const money = useMoney()
+  const tint = channelTint(booking.channel)
+  const needsPrice = !booking.amount
+
+  return (
+    <div
+      className={`flex items-center gap-3 rounded-lg border bg-surface-2 px-3.5 py-3 ${
+        isClash ? 'border-danger' : 'border-border'
+      }`}
+    >
+      <span className="h-8 w-1 shrink-0 rounded-full" style={{ background: tint }} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-sm font-semibold">{booking.guest}</span>
+          {isClash && <AlertTriangle size={12} className="shrink-0 text-danger" />}
+        </div>
+        <span className="mono-label block truncate text-[9px] text-muted-foreground">
+          {booking.channel} · {booking.propertyName} · {dateRange(booking.checkIn, booking.checkOut)}
+        </span>
+      </div>
+      {needsPrice ? (
+        <button
+          onClick={onSetPrice}
+          className="shrink-0 rounded-md border border-primary/60 px-2.5 py-2 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/10"
+        >
+          Set price
+        </button>
+      ) : (
+        <>
+          <span className="shrink-0 text-[13px] font-semibold tabular-nums">{money(booking.amount)}</span>
+          <button
+            onClick={onSetPrice}
+            aria-label={`Edit price for ${booking.guest}`}
+            className="shrink-0 rounded-md border border-border p-2 text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+          >
+            <Pencil size={14} />
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
+// Price-only editor for an imported stay. Only the amount is editable; the
+// entered value persists across future syncs (reconcile never touches amount).
+function SetPriceModal({ booking, onClose }: { booking: Booking; onClose: () => void }) {
+  const symbol = useCurrencySymbol()
+  const [, startTransition] = useTransition()
+  const router = useRouter()
+  const [amount, setAmount] = useState(booking.amount ? String(booking.amount) : '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function save(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    setError(null)
+    startTransition(async () => {
+      const res = await setBookingPrice(booking.id, Number(amount) || 0)
+      if (!res.ok) {
+        setError(res.error)
+        setSaving(false)
+        return
+      }
+      router.refresh()
+      onClose()
+    })
+  }
+
+  return (
+    <Modal title="Set booking price" onClose={onClose}>
+      <p className="mb-4 text-[13px] leading-relaxed text-muted-foreground">
+        {booking.channel} sends only the dates over iCal, never the price. Enter what {booking.guest} paid for{' '}
+        {booking.propertyName} ({dateRange(booking.checkIn, booking.checkOut)}) so it shows on statements and owner
+        payouts. The dates stay in sync with the listing site.
+      </p>
+      <form onSubmit={save} className="flex flex-col gap-4">
+        <Field label={`Amount (${symbol})`}>
+          <input
+            inputMode="numeric"
+            autoFocus
+            value={amount}
+            onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ''))}
+            placeholder="3300"
+            className={inputClass}
+          />
+        </Field>
+
+        {error && (
+          <p role="alert" className="rounded-lg border border-danger bg-danger/10 px-3 py-2.5 text-[12px] text-danger">
+            {error}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={saving}
+          className="mono-label mt-1 rounded-lg py-3.5 text-[11px] text-primary-foreground disabled:opacity-60"
+          style={{ background: 'var(--primary)' }}
+        >
+          {saving ? 'Saving…' : 'Save price'}
         </button>
       </form>
     </Modal>
