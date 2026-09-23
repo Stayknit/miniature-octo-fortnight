@@ -31,7 +31,7 @@ function toRow(c: CostLine): Row {
   }
 }
 
-type VatChange = { vatEnabled?: boolean; vatRate?: number }
+type ConfigChange = { commission?: number; vatEnabled?: boolean; vatRate?: number }
 
 // Host-wide default cost lines applied to owner statements. A line can be
 // scoped to a single property and/or flagged as a host fee that VAT is charged
@@ -40,19 +40,22 @@ type VatChange = { vatEnabled?: boolean; vatRate?: number }
 export function CostingCard({
   costLines,
   properties,
+  commission,
   vatEnabled,
   vatRate,
-  onVatChange,
+  onConfigChange,
 }: {
   costLines: CostLine[]
   properties: string[]
+  commission: number
   vatEnabled: boolean
   vatRate: number
-  onVatChange: (patch: VatChange) => void
+  onConfigChange: (patch: ConfigChange) => void
 }) {
   const symbol = useCurrencySymbol()
   const [rows, setRows] = useState<Row[]>(() => costLines.map(toRow))
   const [rateText, setRateText] = useState(String(vatRate))
+  const [commissionText, setCommissionText] = useState(String(commission))
   const [, startTransition] = useTransition()
 
   function save(row: Row) {
@@ -114,6 +117,33 @@ export function CostingCard({
         line to one property for per-unit charges, and flag host fees so VAT is added on top.
       </p>
 
+      {/* Default commission — the base management fee seeded onto new owners */}
+      <div className="mb-3 rounded-lg border border-border-strong bg-surface-2 p-3">
+        <label className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[13px] font-medium">Default commission</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">Base management fee applied to owner statements.</p>
+          </div>
+          <div className="relative w-24">
+            <input
+              inputMode="numeric"
+              value={commissionText}
+              onChange={(e) => setCommissionText(e.target.value.replace(/[^0-9]/g, ''))}
+              onBlur={() => {
+                const v = Math.min(100, Math.max(0, Math.round(Number(commissionText) || 0)))
+                setCommissionText(String(v))
+                onConfigChange({ commission: v })
+              }}
+              aria-label="Default commission percent"
+              className={`${field} w-full pr-6`}
+            />
+            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+              %
+            </span>
+          </div>
+        </label>
+      </div>
+
       {/* VAT — charged on the lines flagged as host fees */}
       <div className="mb-3 rounded-lg border border-border-strong bg-surface-2 p-3">
         <div className="flex items-center justify-between gap-3">
@@ -122,7 +152,7 @@ export function CostingCard({
             <p className="mt-0.5 text-[11px] text-muted-foreground">Added to lines marked “Host fee (VAT)” below.</p>
           </div>
           <button
-            onClick={() => onVatChange({ vatEnabled: !vatEnabled })}
+            onClick={() => onConfigChange({ vatEnabled: !vatEnabled })}
             aria-pressed={vatEnabled}
             aria-label="Toggle VAT"
             className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${vatEnabled ? 'bg-primary' : 'bg-border'}`}
@@ -143,7 +173,7 @@ export function CostingCard({
                 onBlur={() => {
                   const v = Math.min(100, Math.max(0, Math.round(Number(rateText) || 0)))
                   setRateText(String(v))
-                  onVatChange({ vatRate: v })
+                  onConfigChange({ vatRate: v })
                 }}
                 aria-label="VAT rate"
                 className={`${field} w-full pr-6`}

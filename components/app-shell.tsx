@@ -318,9 +318,6 @@ type SettingsForm = {
   syncMinutes: number
   currency: string
   timezone: string
-  commission: number
-  vatEnabled: boolean
-  vatRate: number
   businessName: string
   businessEmail: string
   businessPhone: string
@@ -336,9 +333,6 @@ const DEFAULTS: SettingsForm = {
   syncMinutes: 15,
   currency: CURRENCIES[0],
   timezone: TIMEZONES[0],
-  commission: 15,
-  vatEnabled: true,
-  vatRate: 15,
   businessName: '',
   businessEmail: '',
   businessPhone: '',
@@ -378,16 +372,12 @@ function SettingsPanel({
           syncMinutes: settings.syncMinutes,
           currency: settings.currency,
           timezone: settings.timezone,
-          commission: settings.commission,
-          vatEnabled: settings.vatEnabled,
-          vatRate: settings.vatRate,
           businessName: settings.businessName,
           businessEmail: settings.businessEmail,
           businessPhone: settings.businessPhone,
         }
       : DEFAULTS,
   )
-  const [commissionText, setCommissionText] = useState(String(form.commission))
   const [editingAccount, setEditingAccount] = useState(false)
 
   // Permanent profile deletion — confirm, wipe all data, then sign out.
@@ -679,15 +669,10 @@ function SettingsPanel({
           <button
             onClick={() => {
               if (editingAccount) {
-                const parsed = Number(commissionText)
-                const next = { ...form, commission: Number.isFinite(parsed) ? parsed : form.commission }
-                setForm(next)
-                startTransition(async () => {
-                  await saveSettings(next)
-                  // Currency (and timezone/commission) drive server-rendered
-                  // money and the Plan page, so refresh to apply them app-wide.
-                  router.refresh()
-                })
+                // Currency and timezone drive server-rendered money and the Plan
+                // page, so refresh to apply them app-wide. (They already persist
+                // immediately via persist(); this just re-renders with them.)
+                startTransition(() => router.refresh())
               }
               setEditingAccount((v) => !v)
             }}
@@ -720,25 +705,11 @@ function SettingsPanel({
                 ))}
               </select>
             </label>
-            <label className="block">
-              <span className="mono-label mb-1.5 block text-[9px] text-muted-foreground">Default commission (%)</span>
-              <input
-                inputMode="numeric"
-                value={commissionText}
-                onChange={(e) => setCommissionText(e.target.value.replace(/[^0-9.]/g, ''))}
-                onBlur={() => {
-                  const parsed = Number(commissionText)
-                  persist({ commission: Number.isFinite(parsed) ? parsed : form.commission })
-                }}
-                className={fieldClass}
-              />
-            </label>
           </div>
         ) : (
           <div className="overflow-hidden rounded-lg border border-border">
             <AccountRow label="Currency" value={form.currency} />
             <AccountRow label="Time zone" value={form.timezone} />
-            <AccountRow label="Default commission" value={`${form.commission}%`} />
           </div>
         )}
       </div>
