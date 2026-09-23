@@ -1932,3 +1932,150 @@ export async function exportMyData() {
     supportMessages,
   }
 }
+
+// Timestamp columns across the restorable tables. Backups serialize these as
+// ISO strings, so they must be revived to Date before re-insert.
+const RESTORE_TIMESTAMP_KEYS = new Set([
+  'createdAt',
+  'updatedAt',
+  'lastAttemptAt',
+  'lastSyncedAt',
+  'nextRetryAt',
+])
+
+// Sanitize one exported row for re-insert: drop the old serial id (a fresh one
+// is generated), force ownership to the current user, and revive timestamp
+// strings. Invalid/missing timestamps are dropped so the column default applies.
+function reviveRestoreRow(row: Record<string, unknown>, userId: string): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(row)) {
+    if (key === 'id') continue
+    if (RESTORE_TIMESTAMP_KEYS.has(key)) {
+      if (value == null) {
+        out[key] = null
+      } else {
+        const d = new Date(value as string)
+        if (!Number.isNaN(d.getTime())) out[key] = d
+      }
+      continue
+    }
+    out[key] = value
+  }
+  out.userId = userId
+  return out
+}
+
+// Restore the signed-in user's operational data from a backup file produced by
+// exportMyData. This REPLACES the user's properties, feeds, channels, bookings,
+// owners, cost lines and settings in a single transaction (all-or-nothing).
+//
+// Deliberately NOT restored: identity (user/account/session), billing
+// (subscription), referrals, promo redemptions, support tickets/messages and
+// security questions — restoring those could resurrect stale billing state,
+// grant unearned credit, or corrupt support/auth records. Outgoing iCal feed
+// tokens are cleared on restore to avoid colliding with the global-unique
+// token index (the host simply re-enables publishing).
+export async function restoreMyData(payload: unknown): Promise<MutationResult> {
+  const userId = await getUserId()
+
+  if (!payload || typeof payload !== 'object') {
+    return { ok: false, error: 'That file is not a StayKnit backup.' }
+  }
+  const p = payload as Record<string, unknown>
+  const asRows = (v: unknown) => (Array.isArray(v) ? (v as Record<string, unknown>[]) : [])
+  const properties = asRows(p.properties)
+  const feeds = asRows(p.feeds)
+  const channels = asRows(p.channels)
+  const bookings = asRows(p.bookings)
+  const owners = asRows(p.owners)
+  const costLines = asRows(p.costLines)
+  const settingsRow =
+    p.settings && typeof p.settings === 'object' ? (p.settings as Record<string, unknown>) : null
+
+  if (
+    !properties.length &&
+    !feeds.length &&
+    !channels.length &&
+    !bookings.length &&
+    !owners.length &&
+    !costLines.length &&
+    !settingsRow
+  ) {
+    return { ok: false, error: 'That file has no StayKnit data to restore.' }
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      // Clear the current operational rows (scoped to this user) before reinsert.
+      await Promise.all([
+        tx.delete(booking).where(eq(booking.userId, userId)),
+        tx.delete(feed).where(eq(feed.userId, userId)),
+        tx.delete(channel).where(eq(channel.userId, userId)),
+        tx.delete(ownerClient).where(eq(ownerClient.userId, userId)),
+        tx.delete(costLine).where(eq(costLine.userId, userId)),
+        tx.delete(property).where(eq(property.userId, userId)),
+      ])
+
+      if (properties.length) {
+        await tx.insert(property).values(
+          properties.map((r) => ({
+            ...reviveRestoreRow(r, userId),
+            icalFeedToken: null,
+          })) as unknown as (typeof property.$inferInsert)[],
+        )
+      }
+
+      // Feeds regenerate their serial ids, so remember old→new so feed-imported
+      // bookings can be re-pointed at the restored feed rows.
+      const feedIdMap = new Map<number, number>()
+      for (const r of feeds) {
+        const oldId = typeof r.id === 'number' ? r.id : null
+        const [inserted] = await tx
+          .insert(feed)
+          .values(reviveRestoreRow(r, userId) as unknown as typeof feed.$inferInsert)
+          .returning({ id: feed.id })
+        if (oldId != null && inserted) feedIdMap.set(oldId, inserted.id)
+      }
+
+      if (channels.length) {
+        await tx
+          .insert(channel)
+          .values(channels.map((r) => reviveRestoreRow(r, userId)) as unknown as (typeof channel.$inferInsert)[])
+      }
+      if (owners.length) {
+        await tx
+          .insert(ownerClient)
+          .values(owners.map((r) => reviveRestoreRow(r, userId)) as unknown as (typeof ownerClient.$inferInsert)[])
+      }
+      if (costLines.length) {
+        await tx
+          .insert(costLine)
+          .values(costLines.map((r) => reviveRestoreRow(r, userId)) as unknown as (typeof costLine.$inferInsert)[])
+      }
+      if (bookings.length) {
+        await tx.insert(booking).values(
+          bookings.map((r) => {
+            const row = reviveRestoreRow(r, userId)
+            const src = row.sourceFeedId
+            // Re-point to the restored feed; drop the link if the feed is gone.
+            row.sourceFeedId = typeof src === 'number' && feedIdMap.has(src) ? feedIdMap.get(src)! : null
+            return row
+          }) as unknown as (typeof booking.$inferInsert)[],
+        )
+      }
+
+      if (settingsRow) {
+        await tx.delete(userSettings).where(eq(userSettings.userId, userId))
+        await tx
+          .insert(userSettings)
+          .values(reviveRestoreRow(settingsRow, userId) as unknown as typeof userSettings.$inferInsert)
+      }
+    })
+  } catch (err) {
+    console.log('[v0] restoreMyData failed:', (err as Error)?.message)
+    return { ok: false, error: 'Restore failed — your existing data was left unchanged.' }
+  }
+
+  revalidatePath('/')
+  return { ok: true }
+}

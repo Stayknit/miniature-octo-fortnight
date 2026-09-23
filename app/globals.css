@@ -77,6 +77,114 @@
   --ring: #5fb3a1;
 }
 
+/* --- Color modes -----------------------------------------------------------
+   The whole UI is painted from the semantic tokens above, so a theme is just a
+   set of token overrides keyed off <html data-theme>. `:root` is the Dark
+   default; the blocks below cover the other three modes. Applied instantly
+   (and flash-free) by the init script in app/layout.tsx. */
+
+[data-theme='light'] {
+  color-scheme: light;
+  --background: #f5f7f7;
+  --foreground: #0b1618;
+  --surface: #ffffff;
+  --surface-2: #eef2f2;
+  --panel: #ffffff;
+  --card: #ffffff;
+  --card-foreground: #0b1618;
+  --popover: #ffffff;
+  --popover-foreground: #0b1618;
+
+  --primary: #2f8677;
+  --primary-foreground: #ffffff;
+  --primary-dim: #dcede9;
+  --primary-muted: #327d70;
+
+  --secondary: #eef2f2;
+  --secondary-foreground: #0b1618;
+  --muted: #eef2f2;
+  --muted-foreground: #566469;
+  --accent: #dcede9;
+  --accent-foreground: #2f8677;
+
+  --destructive: #cf4f3e;
+  --danger: #cf4f3e;
+  --warning: #a9741b;
+
+  --border: #dbe3e3;
+  --border-strong: #a3c9c0;
+  --input: #dbe3e3;
+  --ring: #2f8677;
+}
+
+[data-theme='midnight'] {
+  color-scheme: dark;
+  --background: #000000;
+  --foreground: #f3f7f6;
+  --surface: #060a0b;
+  --surface-2: #0b1113;
+  --panel: #04080a;
+  --card: #060a0b;
+  --card-foreground: #f3f7f6;
+  --popover: #060a0b;
+  --popover-foreground: #f3f7f6;
+
+  --primary: #63bca9;
+  --primary-foreground: #00110d;
+  --primary-dim: #07201d;
+  --primary-muted: #8fc0b6;
+
+  --secondary: #0b1113;
+  --secondary-foreground: #f3f7f6;
+  --muted: #0b1113;
+  --muted-foreground: #7b8d92;
+  --accent: #07201d;
+  --accent-foreground: #63bca9;
+
+  --destructive: #ef7365;
+  --danger: #ef7365;
+  --warning: #e0ab46;
+
+  --border: #161f22;
+  --border-strong: #2b5a52;
+  --input: #161f22;
+  --ring: #63bca9;
+}
+
+[data-theme='sepia'] {
+  color-scheme: light;
+  --background: #f3ead8;
+  --foreground: #3b2f1d;
+  --surface: #fbf4e6;
+  --surface-2: #ece0c8;
+  --panel: #fbf4e6;
+  --card: #fbf4e6;
+  --card-foreground: #3b2f1d;
+  --popover: #fbf4e6;
+  --popover-foreground: #3b2f1d;
+
+  --primary: #3f7d6e;
+  --primary-foreground: #fbf4e6;
+  --primary-dim: #e6dcc2;
+  --primary-muted: #4a7469;
+
+  --secondary: #ece0c8;
+  --secondary-foreground: #3b2f1d;
+  --muted: #ece0c8;
+  --muted-foreground: #7c6c50;
+  --accent: #e6dcc2;
+  --accent-foreground: #3f7d6e;
+
+  --destructive: #b5482f;
+  --danger: #b5482f;
+  --warning: #a9791b;
+
+  --border: #ddcfb2;
+  --border-strong: #b9a686;
+  --input: #ddcfb2;
+  --ring: #3f7d6e;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -126,12 +234,12 @@
 
 .app-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #5fb3a1 #131b1d;
+  scrollbar-color: var(--primary) var(--surface-2);
 }
 .app-scroll::-webkit-scrollbar {
   width: 6px;
 }
 .app-scroll::-webkit-scrollbar-thumb {
-  background: #2b5a52;
+  background: var(--border-strong);
   border-radius: 3px;
 }
