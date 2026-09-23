@@ -549,8 +549,6 @@ function SettingsPanel({
           email changes go through a confirmation link (see AccountDetailsCard). */}
       <AccountDetailsCard />
 
-      <AppearanceCard />
-
       {groups.map((g) => (
         <div key={g}>
           <p className="mono-label mb-2 text-[9px] text-muted-foreground">{g} notifications</p>
