@@ -7,10 +7,12 @@ import {
   deleteOwner,
   emailStatementToHost,
   sendOwnerPasswordReset,
+  saveVatConfig,
   setBookingPaid,
   toggleOwnerAccess,
   updateOwner,
 } from '@/app/actions/stayknit'
+import { CostingCard } from '@/components/host/costing-card'
 import { Field, Modal, inputClass } from '@/components/modal'
 import { useMoney, useCurrency } from '@/components/currency-context'
 import { currencySymbol } from '@/lib/currency'
@@ -37,6 +39,7 @@ export function OwnersScreen({ data, user }: { data: StayKnitData; user: { name:
   const [selected, setSelected] = useState<OwnerClient | null>(null)
   const [addOwnerOpen, setAddOwnerOpen] = useState(false)
   const [addPropertyOpen, setAddPropertyOpen] = useState(false)
+  const [, startVat] = useTransition()
 
   const host = useMemo(
     () =>
@@ -102,6 +105,16 @@ export function OwnersScreen({ data, user }: { data: StayKnitData; user: { name:
         <p className="mono-label text-[9px] text-muted-foreground">Owner payouts this month</p>
         <p className="mt-1 font-sans text-2xl font-extrabold text-primary">{money(totalPayout)}</p>
         <p className="mono-label mt-1 text-[9px] text-muted-foreground">Statements send on the 1st</p>
+      </div>
+
+      <div className="rounded-xl border border-border bg-surface-2 p-4">
+        <CostingCard
+          costLines={data.costLines}
+          properties={data.properties.map((p) => p.name)}
+          vatEnabled={data.settings.vatEnabled}
+          vatRate={data.settings.vatRate}
+          onVatChange={(patch) => startVat(() => void saveVatConfig(patch))}
+        />
       </div>
 
       <div className="grid gap-2.5 lg:grid-cols-2">

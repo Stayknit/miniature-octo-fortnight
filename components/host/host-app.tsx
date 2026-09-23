@@ -62,10 +62,8 @@ export function HostApp({
         tabs={TABS}
         active={tab}
         onSelect={setTab}
-        settings={data.settings}
-        costLines={data.costLines}
-        properties={data.properties.map((p) => p.name)}
-        view={view}
+          settings={data.settings}
+          view={view}
         onSwitchView={onSwitchView}
         showViewSwitch={tab === 'owners'}
       >
