@@ -28,7 +28,7 @@ export const LEGAL = {
   jurisdiction: "the courts of the Republic of South Africa",
   // Data-retention: matches the in-app 12-month inactivity purge.
   inactivityRetentionMonths: 12,
-  lastUpdated: "18 September 2026", // keep in sync when copy changes
+  lastUpdated: "23 September 2026", // keep in sync when copy changes
 } as const
 
 // Address as shown in the Contact sections. When the registered address hasn't

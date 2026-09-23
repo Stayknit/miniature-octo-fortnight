@@ -14,6 +14,16 @@ export default function CookiePolicyPage() {
         device; we use them sparingly and only for the purposes below.
       </p>
 
+      <Section heading="Essential and optional cookies">
+        <p>
+          We use session and security cookies that are necessary to operate the Service, keep you signed in, and protect
+          your account. These essential cookies cannot be switched off in our systems. We may also use optional
+          analytics cookies to understand how the Service is used and to improve it; where applicable law requires
+          consent, we only set these after you have given your consent through our cookie banner, and you can withdraw
+          that consent at any time.
+        </p>
+      </Section>
+
       <Section heading="Essential cookies">
         <p>
           These are required for the Service to work and cannot be switched off. They keep you signed in (a secure,
@@ -44,6 +54,14 @@ export default function CookiePolicyPage() {
           You can accept or decline non-essential tracking using the banner shown on your first visit, and you can change
           your choice at any time by clearing this site’s data in your browser. You can also block or delete cookies in
           your browser settings, though essential cookies are needed to stay signed in.
+        </p>
+      </Section>
+
+      <Section heading="Legal alignment">
+        <p>
+          Our use of cookies and similar technologies is intended to comply with the Electronic Communications and
+          Transactions Act, 2002 and the Protection of Personal Information Act, 2013. If there is any conflict between
+          this Cookie Policy and your statutory rights under those laws, your statutory rights will prevail.
         </p>
       </Section>
     </LegalShell>
