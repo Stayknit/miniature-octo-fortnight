@@ -88,7 +88,7 @@ export async function POST(req: Request) {
         ]
       : [
           'You are answering a HOST who manages listings. Prefer short numbered steps that',
-          'name the exact tab (Owners, Channels, Plan, Settings).',
+          'name the exact tab (Today, Calendar, Channels, Owners, Plan) or Settings.',
         ]
 
   const system = [

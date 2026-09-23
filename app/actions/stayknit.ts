@@ -42,7 +42,7 @@ import { computeCancellationOutcome, noticeMonthsForPeriod } from '@/lib/billing
 import { isTrialCardCaptureEnabled } from '@/lib/flags'
 import type { BillingPeriod, IcalImportResult, OwnerData, PlanKey } from '@/lib/types'
 import { randomBytes } from 'crypto'
-import { and, asc, desc, eq, inArray, lt, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, lt, ne, sql } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import { after } from 'next/server'
 import { revalidatePath } from 'next/cache'
@@ -1290,6 +1290,25 @@ export async function cancelDirectBooking(id: number) {
     .delete(booking)
     .where(and(eq(booking.id, id), eq(booking.userId, userId), eq(booking.channel, 'DIRECT')))
   revalidatePath('/')
+}
+
+// Set the price on an imported (channel) booking. iCal feeds never carry the
+// payout, so the host enters it here and it flows into statements, payouts and
+// revenue. Deliberately NOT restricted to DIRECT — this is the one amount edit
+// allowed on channel/imported reservations. Dates, guest and status stay
+// read-only (owned by the feed), and re-sync never overwrites amount, so the
+// entered price survives every future import. Blocks (status 'block') carry no
+// money and are excluded.
+export async function setBookingPrice(id: number, amount: number): Promise<MutationResult> {
+  const userId = await getUserId()
+  if (!(await hasActiveAccess(userId))) return { ok: false, error: TRIAL_LAPSED_MESSAGE }
+  if (!Number.isFinite(amount) || amount < 0) return { ok: false, error: 'Enter a valid amount.' }
+  await db
+    .update(booking)
+    .set({ amount: Math.max(0, Math.round(amount)) })
+    .where(and(eq(booking.id, id), eq(booking.userId, userId), ne(booking.status, 'block')))
+  revalidatePath('/')
+  return { ok: true }
 }
 
 // Host marks (or unmarks) whether a booking's owner payment was processed.
