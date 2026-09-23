@@ -5,6 +5,7 @@ import { useCurrencySymbol } from '@/components/currency-context'
 import { COST_KINDS, type CostKind } from '@/lib/costing'
 import type { CostLine } from '@/lib/types'
 import { Plus, Trash2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 
 type Row = {
@@ -53,14 +54,20 @@ export function CostingCard({
   onConfigChange: (patch: ConfigChange) => void
 }) {
   const symbol = useCurrencySymbol()
+  const router = useRouter()
   const [rows, setRows] = useState<Row[]>(() => costLines.map(toRow))
   const [rateText, setRateText] = useState(String(vatRate))
   const [commissionText, setCommissionText] = useState(String(commission))
   const [, startTransition] = useTransition()
 
+  // Persist, then refresh the route so the server re-reads the cost lines and
+  // the statement (which renders from the refreshed `data`, not this card's
+  // local state) reflects the edit. Without the refresh the DB updates but the
+  // statement keeps rendering the stale props until a full reload.
   function save(row: Row) {
-    startTransition(() => {
-      void updateCostLine(row)
+    startTransition(async () => {
+      await updateCostLine(row)
+      router.refresh()
     })
   }
 
@@ -88,13 +95,15 @@ export function CostingCard({
     startTransition(async () => {
       const created = await addCostLine()
       if (created) setRows((prev) => [...prev, toRow(created)])
+      router.refresh()
     })
   }
 
   function remove(id: number) {
     setRows((prev) => prev.filter((r) => r.id !== id))
-    startTransition(() => {
-      void deleteCostLine(id)
+    startTransition(async () => {
+      await deleteCostLine(id)
+      router.refresh()
     })
   }
 
