@@ -7,7 +7,7 @@ import {
   deleteOwner,
   emailStatementToHost,
   sendOwnerPasswordReset,
-  saveVatConfig,
+  saveStatementConfig,
   setBookingPaid,
   toggleOwnerAccess,
   updateOwner,
@@ -111,9 +111,10 @@ export function OwnersScreen({ data, user }: { data: StayKnitData; user: { name:
         <CostingCard
           costLines={data.costLines}
           properties={data.properties.map((p) => p.name)}
+          commission={data.settings.commission}
           vatEnabled={data.settings.vatEnabled}
           vatRate={data.settings.vatRate}
-          onVatChange={(patch) => startVat(() => void saveVatConfig(patch))}
+          onConfigChange={(patch) => startVat(() => void saveStatementConfig(patch))}
         />
       </div>
 

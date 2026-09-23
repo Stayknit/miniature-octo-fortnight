@@ -841,9 +841,6 @@ export async function saveSettings(input: {
   syncMinutes: number
   currency: string
   timezone: string
-  commission: number
-  vatEnabled: boolean
-  vatRate: number
   businessName: string
   businessEmail: string
   businessPhone: string
@@ -855,9 +852,6 @@ export async function saveSettings(input: {
     .update(userSettings)
     .set({
       ...input,
-      commission: Math.min(100, Math.max(0, Math.round(input.commission) || 0)),
-      vatEnabled: Boolean(input.vatEnabled),
-      vatRate: Math.min(100, Math.max(0, Math.round(input.vatRate) || 0)),
       syncMinutes: Math.max(5, Math.round(input.syncMinutes) || 15),
       businessName: input.businessName.trim().slice(0, 80),
       businessEmail: input.businessEmail.trim().slice(0, 120),
@@ -868,13 +862,22 @@ export async function saveSettings(input: {
   revalidatePath('/')
 }
 
-// Persist only the VAT config. Used by the Statement costing card, which now
-// lives on the Owners tab (the full settings form stays in Settings).
-export async function saveVatConfig(input: { vatEnabled?: boolean; vatRate?: number }) {
+// Persist the statement-costing config (default commission + VAT). These fields
+// live exclusively on the Owners tab now, so this is the only writer for them —
+// saveSettings no longer touches them, preventing a general settings save from
+// clobbering values edited here.
+export async function saveStatementConfig(input: {
+  commission?: number
+  vatEnabled?: boolean
+  vatRate?: number
+}) {
   const userId = await getUserId()
   await assertActiveAccess(userId)
   await ensureSettings(userId)
-  const patch: { updatedAt: Date; vatEnabled?: boolean; vatRate?: number } = { updatedAt: new Date() }
+  const patch: { updatedAt: Date; commission?: number; vatEnabled?: boolean; vatRate?: number } = {
+    updatedAt: new Date(),
+  }
+  if (typeof input.commission === 'number') patch.commission = Math.min(100, Math.max(0, Math.round(input.commission) || 0))
   if (typeof input.vatEnabled === 'boolean') patch.vatEnabled = input.vatEnabled
   if (typeof input.vatRate === 'number') patch.vatRate = Math.min(100, Math.max(0, Math.round(input.vatRate) || 0))
   await db.update(userSettings).set(patch).where(eq(userSettings.userId, userId))
