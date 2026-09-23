@@ -1777,6 +1777,7 @@ export async function addOwner(input: { name: string; email: string; units: stri
     name,
     email: input.email.trim(),
     units: units.length ? units : ['New unit'],
+    hasAccess: false,
   })
   revalidatePath('/')
 }
