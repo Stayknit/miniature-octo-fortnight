@@ -1148,6 +1148,50 @@ export async function addProperty(input: {
   revalidatePath('/')
 }
 
+// Permanently remove a listing. Properties, bookings and feeds all link by unit
+// NAME (there are no FKs on Neon), so deleting the property row alone would
+// strand its bookings/feeds and leave the plan lock — which counts property
+// rows — computing off a ghost. This deletes the row and, only when no other
+// listing still carries the same name, its bookings and feeds too, then unlinks
+// the name from every owner client. Scoped to the host throughout.
+export async function removeProperty(propertyId: number): Promise<MutationResult> {
+  const userId = await getUserId()
+  await assertActiveAccess(userId)
+  const [row] = await db
+    .select()
+    .from(property)
+    .where(and(eq(property.id, propertyId), eq(property.userId, userId)))
+    .limit(1)
+  if (!row) return { ok: false, error: 'Listing not found.' }
+  const name = row.name
+
+  await db.delete(property).where(and(eq(property.id, propertyId), eq(property.userId, userId)))
+
+  // Guard against name collisions: if another listing still uses this name, its
+  // bookings/feeds/owner-link must stay put.
+  const stillNamed = await db
+    .select({ id: property.id })
+    .from(property)
+    .where(and(eq(property.userId, userId), eq(property.name, name)))
+    .limit(1)
+  if (stillNamed.length === 0) {
+    await db.delete(booking).where(and(eq(booking.userId, userId), eq(booking.propertyName, name)))
+    await db.delete(feed).where(and(eq(feed.userId, userId), eq(feed.propertyName, name)))
+    const owners = await db.select().from(ownerClient).where(eq(ownerClient.userId, userId))
+    for (const o of owners) {
+      if (o.units.includes(name)) {
+        await db
+          .update(ownerClient)
+          .set({ units: o.units.filter((u) => u !== name) })
+          .where(and(eq(ownerClient.id, o.id), eq(ownerClient.userId, userId)))
+      }
+    }
+  }
+
+  revalidatePath('/')
+  return { ok: true }
+}
+
 export type MutationResult = { ok: true } | { ok: false; error: string }
 
 export async function addDirectBooking(input: {
