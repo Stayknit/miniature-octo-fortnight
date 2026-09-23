@@ -31,11 +31,13 @@ import { computeStatement, costLineToInput, totalCost, type PropertySlice, type 
 import { lockedUnitNames } from '@/lib/plans'
 import type { Booking, CostLine, OwnerClient, StayKnitData } from '@/lib/types'
 import { Check, CheckSquare, Copy, Download, Home, KeyRound, Lock, Mail, Pencil, Plus, Square, Trash2, UserPlus } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { useMemo, useState, useTransition } from 'react'
 
 export function OwnersScreen({ data, user }: { data: StayKnitData; user: { name: string; email: string } }) {
   const money = useMoney()
   const currency = useCurrency()
+  const router = useRouter()
   const [selected, setSelected] = useState<OwnerClient | null>(null)
   const [addOwnerOpen, setAddOwnerOpen] = useState(false)
   const [addPropertyOpen, setAddPropertyOpen] = useState(false)
@@ -114,7 +116,13 @@ export function OwnersScreen({ data, user }: { data: StayKnitData; user: { name:
           commission={data.settings.commission}
           vatEnabled={data.settings.vatEnabled}
           vatRate={data.settings.vatRate}
-          onConfigChange={(patch) => startVat(() => void saveStatementConfig(patch))}
+          onConfigChange={(patch) =>
+            startVat(async () => {
+              await saveStatementConfig(patch)
+              // Re-read `data` so VAT changes flow into every statement immediately.
+              router.refresh()
+            })
+          }
         />
       </div>
 
