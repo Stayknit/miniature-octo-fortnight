@@ -868,6 +868,19 @@ export async function saveSettings(input: {
   revalidatePath('/')
 }
 
+// Persist only the VAT config. Used by the Statement costing card, which now
+// lives on the Owners tab (the full settings form stays in Settings).
+export async function saveVatConfig(input: { vatEnabled?: boolean; vatRate?: number }) {
+  const userId = await getUserId()
+  await assertActiveAccess(userId)
+  await ensureSettings(userId)
+  const patch: { updatedAt: Date; vatEnabled?: boolean; vatRate?: number } = { updatedAt: new Date() }
+  if (typeof input.vatEnabled === 'boolean') patch.vatEnabled = input.vatEnabled
+  if (typeof input.vatRate === 'number') patch.vatRate = Math.min(100, Math.max(0, Math.round(input.vatRate) || 0))
+  await db.update(userSettings).set(patch).where(eq(userSettings.userId, userId))
+  revalidatePath('/')
+}
+
 // A readable temporary password for a host-created owner login.
 function generatePassword(): string {
   return randomBytes(9).toString('base64url').replace(/[-_]/g, '') + 'A1'
@@ -1717,16 +1730,6 @@ export async function acknowledgeBooking(id: number) {
   revalidatePath('/')
 }
 
-export async function syncChannel(id: number) {
-  const userId = await getUserId()
-  await assertActiveAccess(userId)
-  await db
-    .update(channel)
-    .set({ syncedSecondsAgo: 0, live: true })
-    .where(and(eq(channel.id, id), eq(channel.userId, userId)))
-  revalidatePath('/')
-}
-
 export async function toggleChannel(id: number, live: boolean) {
   const userId = await getUserId()
   await assertActiveAccess(userId)
@@ -1734,17 +1737,17 @@ export async function toggleChannel(id: number, live: boolean) {
   revalidatePath('/')
 }
 
-// Rename a linked listing site and/or adjust how many units are linked to it.
-// Scoped to the host's own channels.
-export async function updateChannel(input: { id: number; name: string; units: number }) {
+// Rename a linked listing site. Scoped to the host's own channels. The number
+// of units linked and the sync status are DERIVED from the real iCal feeds
+// (feed.channel === channel.name), not stored here, so neither is editable.
+export async function updateChannel(input: { id: number; name: string }) {
   const userId = await getUserId()
   await assertActiveAccess(userId)
   const name = input.name.trim()
   if (!name) throw new Error('Channel name required')
-  const units = Math.max(0, Math.floor(Number(input.units) || 0))
   await db
     .update(channel)
-    .set({ name, units })
+    .set({ name })
     .where(and(eq(channel.id, input.id), eq(channel.userId, userId)))
   revalidatePath('/')
 }

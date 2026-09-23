@@ -2,6 +2,7 @@
 
 import { acknowledgeBooking, addBlock, addDirectBooking, cancelDirectBooking, removeProperty } from '@/app/actions/stayknit'
 import { Field, Modal, inputClass } from '@/components/modal'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { channelLogin, channelTint, dateRange, openChannelLogin } from '@/lib/format'
 import { useMoney, useCurrencySymbol } from '@/components/currency-context'
 import { clashPairs, findClashes, findClashesFor } from '@/lib/overlap'
@@ -60,6 +61,12 @@ export function TodayScreen({ data, onNavigate }: { data: StayKnitData; onNaviga
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-5 pt-4 lg:gap-6 lg:px-8 lg:pt-6">
+      {/* Top bar — color-mode switcher */}
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="mono-label text-[10px] text-muted-foreground">Today</h1>
+        <ThemeToggle />
+      </div>
+
       {/* Viewing switcher */}
       <button
         onClick={() => setViewOpen(true)}
@@ -217,7 +224,10 @@ function ownerFor(unit: string, properties: Property[]): string {
 
 function EmptyOnboarding({ onNavigate }: { onNavigate: (t: string) => void }) {
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-5 pt-8 lg:px-8 lg:pt-12">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-5 pt-4 lg:px-8 lg:pt-6">
+      <div className="flex items-center justify-end">
+        <ThemeToggle />
+      </div>
       <div className="flex flex-col items-center text-center">
         <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-dim text-primary">
           <House size={26} />

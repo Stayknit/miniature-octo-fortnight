@@ -21,9 +21,8 @@ import { SecurityQuestionsCard } from '@/components/security-questions-card'
 import { TwoFactorCard } from '@/components/two-factor-card'
 import { ActiveSessionsCard } from '@/components/active-sessions-card'
 import { AccountDetailsCard } from '@/components/account-details-card'
-import { CostingCard } from '@/components/host/costing-card'
 import { Wordmark } from '@/components/wordmark'
-import type { CostLine, UserSettings } from '@/lib/types'
+import type { UserSettings } from '@/lib/types'
 import { CURRENCY_LABELS } from '@/lib/currency'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
@@ -71,8 +70,6 @@ export function AppShell({
   onSelect,
   children,
   settings,
-  costLines,
-  properties,
   view,
   onSwitchView,
   showViewSwitch = true,
@@ -84,8 +81,6 @@ export function AppShell({
   onSelect: (key: string) => void
   children: ReactNode
   settings?: UserSettings
-  costLines?: CostLine[]
-  properties?: string[]
   view?: 'host' | 'owner'
   onSwitchView?: (v: 'host' | 'owner') => void
   showViewSwitch?: boolean
@@ -227,7 +222,7 @@ export function AppShell({
         {sheet && (
           <Sheet title={sheet === 'settings' ? 'Settings' : 'Help & support'} onClose={() => setSheet(null)}>
             {sheet === 'settings' ? (
-            <SettingsPanel user={user} settings={settings} costLines={costLines} properties={properties} />
+            <SettingsPanel user={user} settings={settings} />
           ) : (
             <HelpPanel role={roleLabel.toLowerCase() === 'owner' ? 'owner' : 'host'} />
           )}
@@ -365,13 +360,9 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
 function SettingsPanel({
   user,
   settings,
-  costLines,
-  properties,
 }: {
   user: { name: string; email: string }
   settings?: UserSettings
-  costLines?: CostLine[]
-  properties?: string[]
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -549,8 +540,6 @@ function SettingsPanel({
           email changes go through a confirmation link (see AccountDetailsCard). */}
       <AccountDetailsCard />
 
-      <AppearanceCard />
-
       {groups.map((g) => (
         <div key={g}>
           <p className="mono-label mb-2 text-[9px] text-muted-foreground">{g} notifications</p>
@@ -648,19 +637,6 @@ function SettingsPanel({
           </label>
         </div>
       </div>
-
-      {/* Statement costing */}
-      {costLines && (
-        <div>
-          <CostingCard
-            costLines={costLines}
-            properties={properties ?? []}
-            vatEnabled={form.vatEnabled}
-            vatRate={form.vatRate}
-            onVatChange={(patch) => persist(patch)}
-          />
-        </div>
-      )}
 
       {/* Invite a friend */}
       <div>

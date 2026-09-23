@@ -8,7 +8,6 @@ import {
   regeneratePropertyFeed,
   removeChannel,
   removeFeed,
-  syncChannel,
   toggleChannel,
   updateChannel,
   updateFeed,
@@ -163,7 +162,7 @@ export function ChannelsScreen({ data }: { data: StayKnitData }) {
 
       <div className="grid gap-2.5 lg:grid-cols-2">
         {data.channels.map((c) => (
-          <ChannelRow key={c.id} channel={c} />
+          <ChannelRow key={c.id} channel={c} stats={deriveChannelStats(c.name, feeds)} />
         ))}
       </div>
     </div>
@@ -478,6 +477,41 @@ function relAgo(value: Date | string | null): string {
   return agoLabel(Math.max(0, Math.round((Date.now() - then) / 1000)))
 }
 
+// Real per-channel figures derived from the connected iCal feeds — the channel
+// row used to show a hand-typed unit count and a fake "synced Ns ago" counter
+// that never matched reality. A channel matches a feed when their listing-site
+// labels are the same (case-insensitive), and units = the distinct properties
+// carried by those feeds.
+type ChannelStats = {
+  feedCount: number
+  units: number
+  lastSyncedAt: Date | string | null
+  failing: boolean
+  syncedOk: boolean
+}
+
+function deriveChannelStats(name: string, feeds: Feed[]): ChannelStats {
+  const key = name.trim().toLowerCase()
+  const matched = feeds.filter((f) => (f.channel || '').trim().toLowerCase() === key)
+  let lastSyncedAt: Date | string | null = null
+  let latest = 0
+  for (const f of matched) {
+    if (!f.lastSyncedAt) continue
+    const t = new Date(f.lastSyncedAt).getTime()
+    if (!Number.isNaN(t) && t > latest) {
+      latest = t
+      lastSyncedAt = f.lastSyncedAt
+    }
+  }
+  return {
+    feedCount: matched.length,
+    units: new Set(matched.map((f) => f.propertyName)).size,
+    lastSyncedAt,
+    failing: matched.some((f) => f.lastStatus === 'error'),
+    syncedOk: matched.some((f) => f.lastStatus === 'ok'),
+  }
+}
+
 function FeedRow({ feed, properties, channels }: { feed: Feed; properties: string[]; channels: string[] }) {
   const [pending, startTransition] = useTransition()
   const [editing, setEditing] = useState(false)
@@ -777,12 +811,11 @@ function ConnectFeed({
   )
 }
 
-function ChannelRow({ channel }: { channel: Channel }) {
+function ChannelRow({ channel, stats }: { channel: Channel; stats: ChannelStats }) {
   const [isPending, startTransition] = useTransition()
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [name, setName] = useState(channel.name)
-  const [units, setUnits] = useState(String(channel.units))
   const tint = channelTint(channel.name)
 
   const field =
@@ -795,7 +828,7 @@ function ChannelRow({ channel }: { channel: Channel }) {
           e.preventDefault()
           if (!name.trim()) return
           startTransition(async () => {
-            await updateChannel({ id: channel.id, name, units: Number(units) })
+            await updateChannel({ id: channel.id, name })
             setEditing(false)
           })
         }}
@@ -804,22 +837,15 @@ function ChannelRow({ channel }: { channel: Channel }) {
         <p className="flex items-center gap-2 text-[13px] font-semibold">
           <Pencil size={14} className="text-primary" /> Edit channel
         </p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="mono-label mb-1.5 block text-[9px] text-muted-foreground">Listing site</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Airbnb" className={field} />
-          </label>
-          <label className="block">
-            <span className="mono-label mb-1.5 block text-[9px] text-muted-foreground">Units linked</span>
-            <input
-              type="number"
-              min={0}
-              value={units}
-              onChange={(e) => setUnits(e.target.value)}
-              className={field}
-            />
-          </label>
-        </div>
+        <label className="block">
+          <span className="mono-label mb-1.5 block text-[9px] text-muted-foreground">Listing site</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Airbnb" className={field} />
+        </label>
+        <p className="mono-label text-[9px] leading-relaxed text-muted-foreground">
+          {stats.feedCount === 0
+            ? 'No feeds linked yet. Connect an iCal feed for this site above and its units will appear here automatically.'
+            : `${stats.units} ${stats.units === 1 ? 'unit' : 'units'} linked · counted from your connected iCal feeds`}
+        </p>
         <div className="flex gap-2">
           <button
             type="submit"
@@ -833,7 +859,6 @@ function ChannelRow({ channel }: { channel: Channel }) {
             onClick={() => {
               setEditing(false)
               setName(channel.name)
-              setUnits(String(channel.units))
             }}
             className="mono-label rounded-lg border border-border px-4 py-2.5 text-[10px] text-muted-foreground"
           >
@@ -856,7 +881,11 @@ function ChannelRow({ channel }: { channel: Channel }) {
           </span>
           <div>
             <p className="text-[15px] font-semibold">{channel.name}</p>
-            <p className="mono-label mt-0.5 text-[9px] text-muted-foreground">{channel.units} units linked</p>
+            <p className="mono-label mt-0.5 text-[9px] text-muted-foreground">
+              {stats.feedCount === 0
+                ? 'No feeds connected'
+                : `${stats.units} ${stats.units === 1 ? 'unit' : 'units'} linked`}
+            </p>
           </div>
         </div>
         <button
@@ -895,15 +924,27 @@ function ChannelRow({ channel }: { channel: Channel }) {
       ) : (
         <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
           <span className="mono-label flex items-center gap-1.5 text-[10px] text-muted-foreground">
-            {channel.live && (
-              <span className="animate-pulse-dot h-1.5 w-1.5 rounded-full" style={{ background: tint }} />
+            {!channel.live ? (
+              'Sync paused'
+            ) : stats.feedCount === 0 ? (
+              'No feeds to sync'
+            ) : stats.failing ? (
+              <span className="flex items-center gap-1 text-danger">
+                <TriangleAlert size={11} /> Sync failed — will retry
+              </span>
+            ) : stats.syncedOk && stats.lastSyncedAt ? (
+              <>
+                <span className="animate-pulse-dot h-1.5 w-1.5 rounded-full" style={{ background: tint }} />
+                Synced {relAgo(stats.lastSyncedAt)}
+              </>
+            ) : (
+              'Not synced yet'
             )}
-            {channel.live ? `Synced ${agoLabel(channel.syncedSecondsAgo)}` : 'Sync paused'}
           </span>
           <div className="flex items-center gap-1.5">
             <button
-              onClick={() => startTransition(() => syncChannel(channel.id))}
-              disabled={isPending}
+              onClick={() => startTransition(async () => { await importIcalFeeds() })}
+              disabled={isPending || stats.feedCount === 0}
               aria-label={`Sync ${channel.name} now`}
               className="mono-label flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[9px] text-primary-muted transition-colors hover:border-primary hover:text-primary disabled:opacity-60"
             >
