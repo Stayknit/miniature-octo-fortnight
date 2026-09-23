@@ -200,6 +200,7 @@ function OwnerSheet({
   const money = useMoney()
   const currency = useCurrency()
   const [, startTransition] = useTransition()
+  const router = useRouter()
   const [delArm, setDelArm] = useState(false)
   const [editing, setEditing] = useState(false)
   const [format, setFormat] = useState<StatementFormat>('pdf')
@@ -372,7 +373,12 @@ function OwnerSheet({
           <span className="block text-[12px] text-muted-foreground">Read-only calendar & statements</span>
         </span>
         <button
-          onClick={() => startTransition(() => toggleOwnerAccess(owner.id, !owner.hasAccess))}
+          onClick={() =>
+            startTransition(async () => {
+              await toggleOwnerAccess(owner.id, !owner.hasAccess)
+              router.refresh()
+            })
+          }
           className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${owner.hasAccess ? 'bg-primary' : 'bg-border'}`}
         >
           <span
@@ -391,6 +397,7 @@ function OwnerSheet({
           }
           startTransition(async () => {
             await deleteOwner(owner.id)
+            router.refresh()
             onClose()
           })
         }}
@@ -435,6 +442,7 @@ function BookingPayRow({ booking }: { booking: Booking }) {
 
 function EditOwnerModal({ owner, onDone, onClose }: { owner: OwnerClient; onDone: () => void; onClose: () => void }) {
   const [, startTransition] = useTransition()
+  const router = useRouter()
   const [name, setName] = useState(owner.name)
   const [email, setEmail] = useState(owner.email)
   const [units, setUnits] = useState(owner.units.join(', '))
@@ -446,6 +454,7 @@ function EditOwnerModal({ owner, onDone, onClose }: { owner: OwnerClient; onDone
     setSaving(true)
     startTransition(async () => {
       await updateOwner({ id: owner.id, name, email, units })
+      router.refresh()
       onDone()
     })
   }
@@ -711,6 +720,7 @@ function Line({ label, value, muted }: { label: string; value: string; muted?: b
 
 function AddOwnerModal({ onClose }: { onClose: () => void }) {
   const [, startTransition] = useTransition()
+  const router = useRouter()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [units, setUnits] = useState('')
@@ -722,6 +732,7 @@ function AddOwnerModal({ onClose }: { onClose: () => void }) {
     setSaving(true)
     startTransition(async () => {
       await addOwner({ name, email, units })
+      router.refresh()
       onClose()
     })
   }
@@ -761,6 +772,7 @@ const KINDS = [
 
 function AddPropertyModal({ data, onClose }: { data: StayKnitData; onClose: () => void }) {
   const [, startTransition] = useTransition()
+  const router = useRouter()
   const [name, setName] = useState('')
   const [specs, setSpecs] = useState('')
   const [kind, setKind] = useState('cottage')
@@ -776,6 +788,7 @@ function AddPropertyModal({ data, onClose }: { data: StayKnitData; onClose: () =
     setSaving(true)
     startTransition(async () => {
       await addProperty({ name, kind, specs, ownerName, ownerEmail })
+      router.refresh()
       onClose()
     })
   }

@@ -11,12 +11,14 @@ import { addDaysIso, todayIso } from '@/lib/today'
 import type { Booking, Property, StayKnitData } from '@/lib/types'
 import { AlertTriangle, ArrowRight, ArrowUpRight, CalendarPlus, Check, ChevronDown, House, Info, Lock, LogOut, MoveRight, Plus, Radio, Trash2, Users } from 'lucide-react'
 import { useMemo, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 
 const ALL = 'All units'
 
 export function TodayScreen({ data, onNavigate }: { data: StayKnitData; onNavigate: (t: string) => void }) {
   const TODAY = todayIso()
   const [isPending, startTransition] = useTransition()
+  const router = useRouter()
   const [blockOpen, setBlockOpen] = useState(false)
   const [directOpen, setDirectOpen] = useState(false)
   const [viewOpen, setViewOpen] = useState(false)
@@ -50,7 +52,10 @@ export function TodayScreen({ data, onNavigate }: { data: StayKnitData; onNaviga
   const viewingOwner = viewing === ALL ? 'All owners' : ownerFor(viewing, data.properties)
 
   function ack(id: number) {
-    startTransition(() => acknowledgeBooking(id))
+    startTransition(async () => {
+      await acknowledgeBooking(id)
+      router.refresh()
+    })
   }
 
   // Brand-new accounts start with nothing. Guide the host to their first step
@@ -160,7 +165,10 @@ export function TodayScreen({ data, onNavigate }: { data: StayKnitData; onNaviga
                 key={b.id}
                 booking={b}
                 busy={isPending}
-                onCancel={() => startTransition(() => cancelDirectBooking(b.id))}
+                onCancel={() => startTransition(async () => {
+                    await cancelDirectBooking(b.id)
+                    router.refresh()
+                  })}
               />
             ))}
           </div>
@@ -568,6 +576,7 @@ function RemoveUnitButton({
 }) {
   const [arm, setArm] = useState(false)
   const [busy, setBusy] = useState(false)
+  const router = useRouter()
   return (
     <button
       type="button"
@@ -578,7 +587,10 @@ function RemoveUnitButton({
         }
         setBusy(true)
         removeProperty(propertyId)
-          .then(() => onRemoved(name))
+          .then(() => {
+            onRemoved(name)
+            router.refresh()
+          })
           .finally(() => setBusy(false))
       }}
       disabled={busy}
@@ -642,6 +654,7 @@ function DirectBookingModal({
 }) {
   const symbol = useCurrencySymbol()
   const [, startTransition] = useTransition()
+  const router = useRouter()
   const [propertyName, setPropertyName] = useState(defaultUnit ?? units[0]?.name ?? '')
   const [guest, setGuest] = useState('')
   const [checkIn, setCheckIn] = useState(() => todayIso())
@@ -664,6 +677,7 @@ function DirectBookingModal({
         setSaving(false)
         return
       }
+      router.refresh()
       onClose()
     })
   }
@@ -739,6 +753,7 @@ function DirectBookingModal({
 
 function BlockModal({ data, units, onClose }: { data: StayKnitData; units: Property[]; onClose: () => void }) {
   const [, startTransition] = useTransition()
+  const router = useRouter()
   const [propertyName, setPropertyName] = useState(units[0]?.name ?? '')
   const [checkIn, setCheckIn] = useState(() => todayIso())
   const [checkOut, setCheckOut] = useState(() => addDaysIso(todayIso(), 1))
@@ -757,6 +772,7 @@ function BlockModal({ data, units, onClose }: { data: StayKnitData; units: Prope
         setSaving(false)
         return
       }
+      router.refresh()
       onClose()
     })
   }
