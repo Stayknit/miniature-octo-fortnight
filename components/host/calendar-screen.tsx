@@ -81,6 +81,21 @@ export function CalendarScreen({ data }: { data: StayKnitData }) {
     return ids.size
   }, [shown, data.bookings])
 
+  // Whether the month in view actually shows any stays. When it doesn't, a host
+  // can mistake an empty grid for "sync isn't working" — so we surface the next
+  // upcoming stay (imported feeds land on their real, often future, dates) with
+  // a one-tap jump to that month. Only counts stays for the units in view.
+  const monthHasStays = useMemo(() => rows.some((r) => r.bars.length > 0), [rows])
+  const nextStay = useMemo(() => {
+    const names = new Set(shown.map((p) => p.name))
+    const todayIso = `${DEMO_TODAY.year}-${String(DEMO_TODAY.month).padStart(2, '0')}-${String(DEMO_TODAY.day).padStart(2, '0')}`
+    return (
+      data.bookings
+        .filter((b) => names.has(b.propertyName) && b.checkOut > todayIso)
+        .sort((a, b) => a.checkIn.localeCompare(b.checkIn))[0] ?? null
+    )
+  }, [shown, data.bookings, DEMO_TODAY])
+
   const scrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     // On the current month land on today's week; otherwise start at day 1.
@@ -154,6 +169,29 @@ export function CalendarScreen({ data }: { data: StayKnitData }) {
           </button>
         ))}
       </div>
+
+      {!monthHasStays && nextStay && (
+        <button
+          type="button"
+          onClick={() => {
+            const [ny, nm] = nextStay.checkIn.split('-').map(Number)
+            setView({ year: ny, month: nm })
+          }}
+          className="mx-5 flex items-center justify-between gap-3 rounded-lg border border-border bg-surface-2/60 px-4 py-3 text-left transition-colors hover:border-primary lg:mx-8"
+        >
+          <span className="text-[13px] text-muted-foreground">
+            No stays in {MONTH_NAMES[view.month - 1]}. Next:{' '}
+            <span className="font-semibold text-foreground">
+              {nextStay.status === 'block' ? 'Blocked' : nextStay.guest}
+            </span>{' '}
+            at {nextStay.propertyName} · {dateRange(nextStay.checkIn, nextStay.checkOut)}
+          </span>
+          <span className="mono-label shrink-0 text-[10px] text-primary">
+            Jump to {MONTH_NAMES[Number(nextStay.checkIn.split('-')[1]) - 1]}{' '}
+            {nextStay.checkIn.split('-')[0]}
+          </span>
+        </button>
+      )}
 
       {/* Timeline */}
       <div ref={scrollRef} className="app-scroll overflow-x-auto pb-2 lg:px-8">
