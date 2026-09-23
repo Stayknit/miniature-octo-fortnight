@@ -1,8 +1,15 @@
 import type { Metadata, Viewport } from 'next'
+import Script from 'next/script'
 import { Archivo, IBM_Plex_Mono } from 'next/font/google'
 import { PWARegister } from '@/components/pwa-register'
 import { CookieConsent } from '@/components/cookie-consent'
 import './globals.css'
+
+// Applies the saved color mode (Dark / Light / Midnight / Sepia) to <html>
+// before first paint so there's no flash of the default theme. Kept as a tiny
+// inline string — it must run before hydration and can't import modules. The
+// allow-list and keys mirror lib/theme.ts.
+const THEME_INIT = `(function(){try{var k='stayknit-theme';var m=localStorage.getItem(k);var ok=['dark','light','midnight','sepia'];if(ok.indexOf(m)===-1)m='dark';var e=document.documentElement;e.dataset.theme=m;e.classList.toggle('dark',m!=='light'&&m!=='sepia');}catch(_){}})();`
 
 const archivo = Archivo({
   subsets: ['latin'],
@@ -138,8 +145,16 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`dark ${archivo.variable} ${plexMono.variable} bg-background`}>
+    <html
+      lang="en"
+      data-theme="dark"
+      className={`dark ${archivo.variable} ${plexMono.variable} bg-background`}
+      suppressHydrationWarning
+    >
       <body className="font-sans antialiased">
+        <Script id="theme-init" strategy="beforeInteractive">
+          {THEME_INIT}
+        </Script>
         {children}
         <PWARegister />
         <CookieConsent analyticsEnabled={process.env.NODE_ENV === 'production'} />

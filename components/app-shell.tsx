@@ -1,6 +1,17 @@
 'use client'
 
-import { deleteProfile, exportMyData, saveSettings, sendReferral } from '@/app/actions/stayknit'
+import { deleteProfile, exportMyData, restoreMyData, saveSettings, sendReferral } from '@/app/actions/stayknit'
+import {
+  applyTheme,
+  DEFAULT_THEME,
+  readStoredTheme,
+  storeTheme,
+  THEME_HINTS,
+  THEME_LABELS,
+  THEME_MODES,
+  THEME_SWATCH,
+  type ThemeMode,
+} from '@/lib/theme'
 import { authClient } from '@/lib/auth-client'
 import { purgeAppCaches } from '@/lib/pwa-cache'
 import { SupportForm } from '@/components/support-sheet'
@@ -15,8 +26,21 @@ import { Wordmark } from '@/components/wordmark'
 import type { CostLine, UserSettings } from '@/lib/types'
 import { CURRENCY_LABELS } from '@/lib/currency'
 import { useRouter } from 'next/navigation'
-import { useState, useTransition, type ReactNode } from 'react'
-import { Check, Download, FileText, HelpCircle, LogOut, Pencil, Send, Settings, Trash2, TriangleAlert } from 'lucide-react'
+import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
+import {
+  Check,
+  Download,
+  FileText,
+  HelpCircle,
+  LogOut,
+  Palette,
+  Pencil,
+  Send,
+  Settings,
+  Trash2,
+  TriangleAlert,
+  Upload,
+} from 'lucide-react'
 import Link from 'next/link'
 
 export type TabDef = {
@@ -391,7 +415,8 @@ function SettingsPanel({
     }
   }
 
-  // Self-service data export (report #13) — downloads a JSON of the account.
+  // Self-service data export (report #13) — downloads a JSON of the account,
+  // which doubles as the account backup file.
   const [exporting, setExporting] = useState(false)
   async function downloadMyData() {
     setExporting(true)
@@ -401,7 +426,7 @@ function SettingsPanel({
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `stayknit-data-${new Date().toISOString().slice(0, 10)}.json`
+      a.download = `stayknit-backup-${new Date().toISOString().slice(0, 10)}.json`
       document.body.appendChild(a)
       a.click()
       a.remove()
@@ -409,6 +434,64 @@ function SettingsPanel({
     } finally {
       setExporting(false)
     }
+  }
+
+  // Restore from a backup file. The chosen file is parsed client-side, then a
+  // confirm step gates the destructive replace before the server action runs.
+  const restoreInputRef = useRef<HTMLInputElement>(null)
+  const [restoreStage, setRestoreStage] = useState<'idle' | 'confirm' | 'working' | 'done' | 'error'>('idle')
+  const [restoreFileName, setRestoreFileName] = useState('')
+  const [restoreError, setRestoreError] = useState('')
+  const [restorePayload, setRestorePayload] = useState<unknown>(null)
+
+  function pickRestoreFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    // Reset so choosing the same file again re-triggers change.
+    e.target.value = ''
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result))
+        setRestorePayload(parsed)
+        setRestoreFileName(file.name)
+        setRestoreError('')
+        setRestoreStage('confirm')
+      } catch {
+        setRestoreError('That file is not valid JSON.')
+        setRestoreStage('error')
+      }
+    }
+    reader.onerror = () => {
+      setRestoreError('Could not read that file.')
+      setRestoreStage('error')
+    }
+    reader.readAsText(file)
+  }
+
+  async function confirmRestore() {
+    setRestoreStage('working')
+    try {
+      const res = await restoreMyData(restorePayload)
+      if (res.ok) {
+        setRestoreStage('done')
+        setRestorePayload(null)
+        router.refresh()
+      } else {
+        setRestoreError(res.error ?? 'Restore failed.')
+        setRestoreStage('error')
+      }
+    } catch {
+      setRestoreError('Restore failed — your existing data was left unchanged.')
+      setRestoreStage('error')
+    }
+  }
+
+  function resetRestore() {
+    setRestoreStage('idle')
+    setRestoreError('')
+    setRestorePayload(null)
+    setRestoreFileName('')
   }
 
   // Referral
@@ -442,15 +525,17 @@ function SettingsPanel({
     'w-full rounded-lg border border-border bg-surface-2 px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-primary'
   const groups = ['Push', 'Email'] as const
 
-  // Owners get a minimal panel — no host-only notification, sync, or billing controls.
+  // Owners get a minimal panel — no host-only notification, sync, or billing
+  // controls — but still get their own appearance preference.
   if (!settings) {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-6">
         <div className="rounded-lg border border-border bg-surface-2 p-4">
           <p className="mono-label text-[9px] text-muted-foreground">Signed in as</p>
           <p className="mt-1 font-semibold">{user.name}</p>
           <p className="text-sm text-muted-foreground">{user.email}</p>
         </div>
+        <AppearanceCard />
         <p className="text-[12px] leading-relaxed text-muted-foreground">
           You have a read-only owner view of your own units. Your host manages sync, statements, and billing.
         </p>
@@ -463,6 +548,8 @@ function SettingsPanel({
       {/* Editable account details — changes require password confirmation, and
           email changes go through a confirmation link (see AccountDetailsCard). */}
       <AccountDetailsCard />
+
+      <AppearanceCard />
 
       {groups.map((g) => (
         <div key={g}>
@@ -680,22 +767,85 @@ function SettingsPanel({
         )}
       </div>
 
-      {/* Your data — self-service export (report #13) */}
+      {/* Backup & restore — self-service export (report #13) plus restore */}
       <div>
-        <p className="mono-label mb-2 text-[9px] text-muted-foreground">Your data</p>
-        <div className="rounded-lg border border-border bg-surface-2 p-4">
-          <p className="text-[13px] font-semibold text-foreground">Export your data</p>
-          <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-            Download everything in your account — properties, channels, bookings, owners, statements, and settings — as a
-            JSON file.
-          </p>
-          <button
-            onClick={downloadMyData}
-            disabled={exporting}
-            className="mono-label mt-3 flex items-center gap-1.5 rounded-md border border-border-strong px-3 py-2 text-[9px] text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-60"
-          >
-            <Download size={12} /> {exporting ? 'Preparing…' : 'Download my data'}
-          </button>
+        <p className="mono-label mb-2 text-[9px] text-muted-foreground">Backup &amp; restore</p>
+        <div className="flex flex-col gap-2.5">
+          {/* Backup / export */}
+          <div className="rounded-lg border border-border bg-surface-2 p-4">
+            <p className="text-[13px] font-semibold text-foreground">Back up your data</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+              Download everything in your account — properties, channels, bookings, owners, statements, and settings —
+              as a single JSON file. Keep it somewhere safe; it&apos;s also your restore point.
+            </p>
+            <button
+              onClick={downloadMyData}
+              disabled={exporting}
+              className="mono-label mt-3 flex items-center gap-1.5 rounded-md border border-border-strong px-3 py-2 text-[9px] text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-60"
+            >
+              <Download size={12} /> {exporting ? 'Preparing…' : 'Download backup'}
+            </button>
+          </div>
+
+          {/* Restore */}
+          <div className="rounded-lg border border-border bg-surface-2 p-4">
+            <p className="text-[13px] font-semibold text-foreground">Restore from a backup</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+              Replace your properties, channels, bookings, owners, cost lines and settings with those from a backup
+              file. Your login, billing and support history are left untouched.
+            </p>
+
+            <input
+              ref={restoreInputRef}
+              type="file"
+              accept="application/json,.json"
+              onChange={pickRestoreFile}
+              className="hidden"
+            />
+
+            {restoreStage === 'confirm' ? (
+              <div className="mt-3 flex flex-col gap-2.5 rounded-lg border border-warning/50 bg-warning/10 px-3 py-3">
+                <p className="flex items-start gap-1.5 text-[12px] text-foreground">
+                  <TriangleAlert size={14} className="mt-0.5 shrink-0 text-warning" />
+                  Restoring <span className="font-semibold">{restoreFileName}</span> overwrites your current
+                  properties, channels, bookings, owners and cost lines. This can&apos;t be undone.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={confirmRestore}
+                    className="mono-label flex flex-1 items-center justify-center gap-1.5 rounded-md bg-primary py-2 text-[9px] text-primary-foreground"
+                  >
+                    <Upload size={12} /> Restore now
+                  </button>
+                  <button
+                    onClick={resetRestore}
+                    className="mono-label rounded-md border border-border px-3 py-2 text-[9px] text-muted-foreground"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : restoreStage === 'working' ? (
+              <p className="mono-label mt-3 text-[10px] text-muted-foreground">Restoring…</p>
+            ) : restoreStage === 'done' ? (
+              <p className="mono-label mt-3 flex items-center gap-1.5 text-[10px] text-primary">
+                <Check size={12} /> Backup restored
+              </p>
+            ) : (
+              <button
+                onClick={() => restoreInputRef.current?.click()}
+                className="mono-label mt-3 flex items-center gap-1.5 rounded-md border border-border-strong px-3 py-2 text-[9px] text-foreground transition-colors hover:border-primary hover:text-primary"
+              >
+                <Upload size={12} /> Choose backup file
+              </button>
+            )}
+
+            {restoreStage === 'error' && (
+              <p className="mt-2 flex items-center gap-1.5 text-[11px] text-danger">
+                <TriangleAlert size={12} /> {restoreError}
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
@@ -756,6 +906,62 @@ function SettingsPanel({
             </button>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+// Color-mode picker. The preference is client-only (localStorage + <html
+// data-theme>), so we sync from storage after mount to match what the
+// beforeInteractive init script already applied, avoiding a hydration mismatch.
+function AppearanceCard() {
+  const [theme, setTheme] = useState<ThemeMode>(DEFAULT_THEME)
+
+  useEffect(() => {
+    setTheme(readStoredTheme())
+  }, [])
+
+  function choose(mode: ThemeMode) {
+    setTheme(mode)
+    applyTheme(mode)
+    storeTheme(mode)
+  }
+
+  return (
+    <div>
+      <p className="mono-label mb-2 flex items-center gap-1.5 text-[9px] text-muted-foreground">
+        <Palette size={12} /> Appearance
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        {THEME_MODES.map((mode) => {
+          const on = theme === mode
+          const sw = THEME_SWATCH[mode]
+          return (
+            <button
+              key={mode}
+              onClick={() => choose(mode)}
+              aria-pressed={on}
+              className={`flex flex-col gap-2 rounded-lg border p-2.5 text-left transition-colors ${
+                on ? 'border-primary bg-primary-dim' : 'border-border bg-surface-2 hover:border-border-strong'
+              }`}
+            >
+              <span
+                className="flex h-9 items-center gap-1.5 rounded-md border px-2"
+                style={{ backgroundColor: sw.bg, borderColor: on ? sw.primary : 'transparent' }}
+              >
+                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: sw.primary }} />
+                <span className="h-1.5 flex-1 rounded-full" style={{ backgroundColor: sw.fg, opacity: 0.5 }} />
+              </span>
+              <span className="flex items-center justify-between">
+                <span className={`text-[12px] font-semibold ${on ? 'text-primary' : 'text-foreground'}`}>
+                  {THEME_LABELS[mode]}
+                </span>
+                {on && <Check size={13} className="text-primary" />}
+              </span>
+              <span className="text-[10px] leading-tight text-muted-foreground">{THEME_HINTS[mode]}</span>
+            </button>
+          )
+        })}
       </div>
     </div>
   )
