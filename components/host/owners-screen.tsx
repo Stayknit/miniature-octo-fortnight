@@ -208,6 +208,7 @@ function OwnerSheet({
   const [emailing, startEmail] = useTransition()
   const [emailedTo, setEmailedTo] = useState<string | null>(null)
   const [emailErr, setEmailErr] = useState<string | null>(null)
+  const [accessErr, setAccessErr] = useState<string | null>(null)
 
   function sendStatementToMe() {
     setEmailErr(null)
@@ -367,24 +368,36 @@ function OwnerSheet({
         )}
       </p>
 
-      <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-surface-2 px-4 py-3">
-        <span>
-          <span className="block text-sm font-medium">Owner portal access</span>
-          <span className="block text-[12px] text-muted-foreground">Read-only calendar & statements</span>
-        </span>
-        <button
-          onClick={() =>
-            startTransition(async () => {
-              await toggleOwnerAccess(owner.id, !owner.hasAccess)
-              router.refresh()
-            })
-          }
-          className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${owner.hasAccess ? 'bg-primary' : 'bg-border'}`}
-        >
-          <span
-            className={`absolute top-0.5 h-4 w-4 rounded-full bg-background transition-all ${owner.hasAccess ? 'left-[18px]' : 'left-0.5'}`}
-          />
-        </button>
+      <div className="mt-4 rounded-lg border border-border bg-surface-2 px-4 py-3">
+        <div className="flex items-center justify-between">
+          <span>
+            <span className="block text-sm font-medium">Owner portal access</span>
+            <span className="block text-[12px] text-muted-foreground">Read-only calendar & statements</span>
+          </span>
+          <button
+            onClick={() =>
+              startTransition(async () => {
+                setAccessErr(null)
+                try {
+                  await toggleOwnerAccess(owner.id, !owner.hasAccess)
+                  router.refresh()
+                } catch (e) {
+                  setAccessErr(e instanceof Error ? e.message : 'Could not update access')
+                }
+              })
+            }
+            className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${owner.hasAccess ? 'bg-primary' : 'bg-border'}`}
+          >
+            <span
+              className={`absolute top-0.5 h-4 w-4 rounded-full bg-background transition-all ${owner.hasAccess ? 'left-[18px]' : 'left-0.5'}`}
+            />
+          </button>
+        </div>
+        {accessErr ? (
+          <p className="mt-2 text-[12px]" style={{ color: 'var(--danger)' }}>
+            {accessErr}
+          </p>
+        ) : null}
       </div>
 
       <OwnerLoginCard owner={owner} />
