@@ -1777,6 +1777,7 @@ export async function addOwner(input: { name: string; email: string; units: stri
     name,
     email: input.email.trim(),
     units: units.length ? units : ['New unit'],
+    hasAccess: false,
   })
   revalidatePath('/')
 }
@@ -1800,6 +1801,24 @@ export async function updateOwner(input: { id: number; name: string; email: stri
 export async function toggleOwnerAccess(id: number, hasAccess: boolean) {
   const userId = await getUserId()
   await assertActiveAccess(userId)
+  // Turning access ON must reflect a real linked login. Without this guard the
+  // flag can read "access granted" while no owner account exists — the exact
+  // mismatch that left an owner stranded on a separate host account. Disabling
+  // is always allowed (revokes a login's view). Enabling requires that a user
+  // row with role "owner" is linked to this host by the owner's email.
+  if (hasAccess) {
+    const [owner] = await db
+      .select()
+      .from(ownerClient)
+      .where(and(eq(ownerClient.id, id), eq(ownerClient.userId, userId)))
+      .limit(1)
+    if (!owner) throw new Error('Owner not found')
+    const email = owner.email.trim().toLowerCase()
+    const [loginUser] = email ? await db.select().from(user).where(eq(user.email, email)).limit(1) : []
+    if (!loginUser || loginUser.hostUserId !== userId || loginUser.role !== 'owner') {
+      throw new Error('This owner has no linked login yet — use "Create login" first')
+    }
+  }
   await db.update(ownerClient).set({ hasAccess }).where(and(eq(ownerClient.id, id), eq(ownerClient.userId, userId)))
   revalidatePath('/')
 }

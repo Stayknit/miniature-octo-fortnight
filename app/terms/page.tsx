@@ -78,7 +78,8 @@ export default function TermsPage() {
       <Section heading="8. Billing and cancellation">
         <p>
           StayKnit is a flat prepaid fee with no booking commission. Paid plans are billed once, upfront, for a fixed
-          term. <strong>Auto-renewal is optional and off by default</strong>: unless you choose to enable it, a plan
+          term (monthly, 6-month, or yearly). <strong>Auto-renewal is optional and off by default</strong>: unless you
+          choose to enable it, a plan
           does not auto-renew, and when the term ends access reverts to the free trial unless you purchase another
           term. If you opt into auto-renewal — at checkout or later from your plan — you authorise StayKnit to store a
           secure payment token with Paystack and to charge the same term shortly before it ends, at the price then in
@@ -86,8 +87,8 @@ export default function TermsPage() {
         </p>
         <p>
           <strong>Cancellation.</strong> You may cancel a paid plan at any time from your plan. A notice period applies
-          — <strong>one month</strong> for monthly terms and <strong>two months</strong> for yearly terms — measured
-          from the date you cancel. You keep full access through the notice period, after which your account returns to
+          — <strong>one month</strong> for monthly terms and <strong>two months</strong> for 6-month and yearly terms —
+          measured from the date you cancel. You keep full access through the notice period, after which your account returns to
           the free trial, and any auto-renewal is switched off so no further charge is made. Where you have prepaid
           beyond the notice period, we refund the unused balance on a pro-rata basis to your original payment method.
           Refunds are reviewed and released by StayKnit and typically reflect within 5–10 business days, depending on
@@ -96,6 +97,12 @@ export default function TermsPage() {
           covering the applicable notice period are retained and are otherwise non-refundable except where required by
           law. The free trial requires no card, and nothing is charged until you confirm a paid plan. Payments are
           processed by Paystack; StayKnit never stores your full card details.
+        </p>
+        <p>
+          For consumers to whom the Consumer Protection Act, 2008 applies, these fixed-term subscription terms are
+          intended to comply with section 14 and its regulations on expiry, renewal, cancellation on notice, reasonable
+          cancellation penalties, and expiry notices. If there is any conflict between this clause and mandatory rights
+          under that Act, those statutory rights will prevail.
         </p>
       </Section>
 
@@ -124,8 +131,12 @@ export default function TermsPage() {
       <Section heading="11. Changes and termination">
         <p>
           We may update these Terms from time to time; material changes will be reflected by the “last updated” date
-          above and, where appropriate, notified in-app. You may stop using the Service and delete your account at any
-          time. We may suspend or terminate access for breach of these Terms.
+          above and, where appropriate, notified in-app or by email at least 14 days before they take effect, unless the
+          change is required by law or relates to a new feature you choose to use earlier. If you do not accept the
+          updated Terms, you may stop using the Service and cancel your plan before the effective date; we will then
+          treat your cancellation as described in the Billing and cancellation clause above. Your continued use of the
+          Service after the effective date of any updated Terms will constitute your acceptance of those changes. We may
+          suspend or terminate access for breach of these Terms.
         </p>
       </Section>
 

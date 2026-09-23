@@ -9,6 +9,7 @@ import { todayParts } from '@/lib/today'
 import type { Booking, StayKnitData } from '@/lib/types'
 import { AlertTriangle, ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 
 const CELL = 34 // px per day
 const MONTH_NAMES = [
@@ -322,11 +323,15 @@ function DirectBookingRow({
 }) {
   const money = useMoney()
   const [pending, startTransition] = useTransition()
+  const router = useRouter()
   const tint = channelTint(booking.channel)
 
   function remove() {
     if (!confirm(`Cancel ${booking.guest}'s direct booking? This frees the dates on every linked channel.`)) return
-    startTransition(() => cancelDirectBooking(booking.id))
+    startTransition(async () => {
+      await cancelDirectBooking(booking.id)
+      router.refresh()
+    })
   }
 
   return (
@@ -378,6 +383,7 @@ function EditDirectBookingModal({
 }) {
   const symbol = useCurrencySymbol()
   const [, startTransition] = useTransition()
+  const router = useRouter()
   const [propertyName, setPropertyName] = useState(booking.propertyName)
   const [guest, setGuest] = useState(booking.guest)
   const [checkIn, setCheckIn] = useState(booking.checkIn)
@@ -402,6 +408,7 @@ function EditDirectBookingModal({
         setSaving(false)
         return
       }
+      router.refresh()
       onClose()
     })
   }

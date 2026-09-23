@@ -30,6 +30,7 @@ import {
   X,
 } from 'lucide-react'
 import { useEffect, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 
 export function ChannelsScreen({ data }: { data: StayKnitData }) {
   const live = data.channels.filter((c) => c.live).length
@@ -39,11 +40,13 @@ export function ChannelsScreen({ data }: { data: StayKnitData }) {
   const [result, setResult] = useState<IcalImportResult | null>(null)
   const [showConnect, setShowConnect] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
+  const router = useRouter()
 
   function runImport() {
     startImport(async () => {
       const r = await importIcalFeeds()
       setResult(r)
+      router.refresh()
     })
   }
 
@@ -257,18 +260,21 @@ function OutgoingFeedRow({
   const [pending, startTransition] = useTransition()
   const [copied, setCopied] = useState(false)
   const [confirmStop, setConfirmStop] = useState(false)
+  const router = useRouter()
   const url = token ? `${origin}/ical/${token}.ics` : ''
 
   function publish() {
     startTransition(async () => {
       const r = await enablePropertyFeed(property.id)
       if (r.ok && r.token) onChange(r.token)
+      router.refresh()
     })
   }
   function regenerate() {
     startTransition(async () => {
       const r = await regeneratePropertyFeed(property.id)
       if (r.ok && r.token) onChange(r.token)
+      router.refresh()
     })
   }
   function stop() {
@@ -276,6 +282,7 @@ function OutgoingFeedRow({
       await disablePropertyFeed(property.id)
       onChange(null)
       setConfirmStop(false)
+      router.refresh()
     })
   }
   async function copy() {
@@ -516,6 +523,7 @@ function FeedRow({ feed, properties, channels }: { feed: Feed; properties: strin
   const [pending, startTransition] = useTransition()
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const router = useRouter()
   const tint = channelTint(feed.channel || '')
   const failing = feed.lastStatus === 'error'
   const syncedOk = feed.lastStatus === 'ok'
@@ -569,7 +577,7 @@ function FeedRow({ feed, properties, channels }: { feed: Feed; properties: strin
         {confirmDelete ? (
           <>
             <button
-              onClick={() => startTransition(() => removeFeed(feed.id))}
+              onClick={() => startTransition(async () => { await removeFeed(feed.id); router.refresh() })}
               disabled={pending}
               className="mono-label flex items-center gap-1 rounded-md border border-danger bg-danger/10 px-2 py-1.5 text-[9px] text-danger transition-opacity disabled:opacity-60"
             >
@@ -621,6 +629,7 @@ function EditFeed({
   const [channel, setChannel] = useState(feed.channel)
   const [icalUrl, setIcalUrl] = useState(feed.icalUrl)
   const [pending, startTransition] = useTransition()
+  const router = useRouter()
 
   const field =
     'w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-primary'
@@ -630,6 +639,7 @@ function EditFeed({
     if (!propertyName || !icalUrl.trim()) return
     startTransition(async () => {
       await updateFeed({ id: feed.id, propertyName, channel, icalUrl })
+      router.refresh()
       onDone()
     })
   }
@@ -709,6 +719,7 @@ function ConnectFeed({
   const [icalUrl, setIcalUrl] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const router = useRouter()
 
   const field =
     'w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-primary'
@@ -733,6 +744,7 @@ function ConnectFeed({
     setError(null)
     startTransition(async () => {
       await addFeed({ propertyName, channel, icalUrl })
+      router.refresh()
       onDone()
     })
   }
@@ -816,6 +828,7 @@ function ChannelRow({ channel, stats }: { channel: Channel; stats: ChannelStats 
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [name, setName] = useState(channel.name)
+  const router = useRouter()
   const tint = channelTint(channel.name)
 
   const field =
@@ -829,6 +842,7 @@ function ChannelRow({ channel, stats }: { channel: Channel; stats: ChannelStats 
           if (!name.trim()) return
           startTransition(async () => {
             await updateChannel({ id: channel.id, name })
+            router.refresh()
             setEditing(false)
           })
         }}
@@ -889,7 +903,7 @@ function ChannelRow({ channel, stats }: { channel: Channel; stats: ChannelStats 
           </div>
         </div>
         <button
-          onClick={() => startTransition(() => toggleChannel(channel.id, !channel.live))}
+          onClick={() => startTransition(async () => { await toggleChannel(channel.id, !channel.live); router.refresh() })}
           className={`mono-label rounded-full border px-2.5 py-1 text-[9px] transition-colors ${
             channel.live ? 'border-primary/50 bg-primary-dim text-primary' : 'border-border text-muted-foreground'
           }`}
@@ -906,7 +920,7 @@ function ChannelRow({ channel, stats }: { channel: Channel; stats: ChannelStats 
           </span>
           <div className="flex shrink-0 items-center gap-1.5">
             <button
-              onClick={() => startTransition(() => removeChannel(channel.id))}
+              onClick={() => startTransition(async () => { await removeChannel(channel.id); router.refresh() })}
               disabled={isPending}
               className="mono-label flex items-center gap-1 rounded-md border border-danger bg-danger/10 px-2.5 py-1.5 text-[9px] text-danger transition-opacity disabled:opacity-60"
             >
@@ -943,7 +957,7 @@ function ChannelRow({ channel, stats }: { channel: Channel; stats: ChannelStats 
           </span>
           <div className="flex items-center gap-1.5">
             <button
-              onClick={() => startTransition(async () => { await importIcalFeeds() })}
+              onClick={() => startTransition(async () => { await importIcalFeeds(); router.refresh() })}
               disabled={isPending || stats.feedCount === 0}
               aria-label={`Sync ${channel.name} now`}
               className="mono-label flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[9px] text-primary-muted transition-colors hover:border-primary hover:text-primary disabled:opacity-60"

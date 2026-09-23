@@ -12,7 +12,14 @@ export default function PrivacyPage() {
     <LegalShell title="Privacy Policy">
       <p>
         This Privacy Policy explains how {LEGAL.entity} (“StayKnit”, “we”) collects, uses, and shares personal
-        information when you use StayKnit. We act as the responsible party (controller) for this data.
+        information when you use StayKnit.
+      </p>
+      <p>
+        For host account data (such as your login details, contact information, billing records and support
+        communications), StayKnit acts as the responsible party and determines the purposes and means of processing.
+        For owner and guest information that hosts enter into the Service or import from listing-site calendar feeds
+        (such as owner identifiers and guest names and stay dates), StayKnit acts as an operator, processing that
+        personal information only on the host’s documented instructions.
       </p>
 
       <Section heading="1. Information we collect">
@@ -60,6 +67,11 @@ export default function PrivacyPage() {
         <p>
           These providers process data on our behalf under contract, or as independent controllers for payments. We may
           also disclose data where required by law.
+        </p>
+        <p>
+          Some personal information may be processed and stored outside South Africa by these providers. We rely on
+          contractual safeguards and comparable data-protection standards to comply with section 72 of the Protection of
+          Personal Information Act, 2013 for cross-border transfers of personal information.
         </p>
       </Section>
 

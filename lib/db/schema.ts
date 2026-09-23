@@ -633,6 +633,10 @@ export const ownerClient = pgTable("owner_client", {
   commission: integer("commission").notNull().default(0),
   cleaning: integer("cleaning").notNull().default(0),
   net: integer("net").notNull().default(0),
-  hasAccess: boolean("hasAccess").notNull().default(true),
+  // Access is OFF until a host explicitly grants it, which requires a linked
+  // owner login (see createOwnerLogin / toggleOwnerAccess). Defaulting to true
+  // let owner_clients read as "access granted" before any login existed — the
+  // bug that stranded an owner on a separate host account.
+  hasAccess: boolean("hasAccess").notNull().default(false),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 })
