@@ -8,6 +8,11 @@ A dated record of notable changes to the app, its security posture, and the lega
 
 ## 2026-09-24
 
+### Collapsible categories, applied across the app
+- **Statement costing (Finances):** each cost line collapses to a compact summary header (name + fee chip + scope/VAT/off badges) that expands to the edit fields on tap. Existing lines start collapsed; a newly added line auto-expands. (Branch `v0/collapsible-statement-costing`.)
+- **Channel pricing (Finances):** each per-site fee row now uses the same pattern — collapsed header shows the site, unit, and a fee summary (e.g. "15% commission · 15% VAT", or an amber "No fee set — net = gross" for unconfigured sites). Configured sites start collapsed; unconfigured sites auto-expand to invite setup.
+- **Why:** as a host adds fees/sites, these lists were getting long and every row showed its full form at once. Collapsing to summaries keeps the screen scannable while one tap still reveals the full editor. Purely presentational — no costing/pricing math, server actions, or persistence changed. (Left already-compact surfaces alone: the iCal feed rows use a separate edit form, and owner rows already open into a modal.)
+
 ### Cancellation sync — handle feeds that retain STATUS:CANCELLED
 - **What:** `parseIcal` never read the iCal `STATUS` property, so the live importer treated a `STATUS:CANCELLED` VEVENT as a normal confirmed stay. Now `parseIcal` surfaces `status`, and `syncFeedsForUser` skips a `CANCELLED` event so any stored row it owns is deleted and the date frees.
 - **Why it matters:** When a guest cancels, Airbnb and Booking.com *remove* the event from the .ics export — that case already synced correctly (the reconciliation loop deletes the vanished row). But some feeds instead keep the event flagged `STATUS:CANCELLED`; those were staying on the calendar as a confirmed booking, silently blocking a date that was actually free (a lost-booking risk, the inverse of a double-booking). Both cancel styles now free the date.
