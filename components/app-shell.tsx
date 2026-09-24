@@ -15,6 +15,7 @@ import {
 import { authClient } from '@/lib/auth-client'
 import { purgeAppCaches } from '@/lib/pwa-cache'
 import { SupportForm } from '@/components/support-sheet'
+import { FeedbackButton } from '@/components/feedback-button'
 import { HelpManual } from '@/components/help-manual'
 import { WhoWeAre } from '@/components/who-we-are'
 import { SecurityQuestionsCard } from '@/components/security-questions-card'
@@ -218,6 +219,10 @@ export function AppShell({
             )
           })}
         </nav>
+
+        {/* Floating feedback entry point — on every authed screen, scoped to
+            this relative column so its overlay behaves like the sheet above. */}
+        <FeedbackButton />
 
         {sheet && (
           <Sheet title={sheet === 'settings' ? 'Settings' : 'Help & support'} onClose={() => setSheet(null)}>

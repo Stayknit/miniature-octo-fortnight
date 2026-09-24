@@ -8,6 +8,12 @@ A dated record of notable changes to the app, its security posture, and the lega
 
 ## 2026-09-24
 
+### Feedback button on every authed screen
+- **What:** A floating "Feedback" button (bottom-right, above the mobile bottom nav) on every host/owner screen, mounted in `AppShell`. Click-triggered only — never time/scroll/exit-based — so it's zero-annoyance and appears only when asked for. Opens a compact popup: an optional mood (Loving it / It's fine / Frustrating), a type (Idea / Praise / Problem / Other), an optional subject, and a message; then a success state.
+- **How it routes:** reuses the existing `submitSupportTicket` action with `category: 'feedback'` — no new table, action, or migration. Feedback lands in the admin Tickets tab with the usual AI-drafted reply and the user gets the standard email acknowledgement. Mood is prefixed onto the message (`[Mood: …]`) and the type shapes the subject (`Idea feedback`) so triage reads clearly.
+- **UX/a11y:** reuses the shared `Modal` (Esc + click-outside close), buttons carry `aria-pressed`/`aria-label`, inputs are labelled, and the overlay is scoped to the shell's relative column exactly like the Settings/Help sheet.
+- **Verification:** tsc 0 errors. No live authed click-through yet (the button only renders behind host/owner auth; the pipeline it calls is already proven).
+
 ### Collapsible categories, applied across the app
 - **Statement costing (Finances):** each cost line collapses to a compact summary header (name + fee chip + scope/VAT/off badges) that expands to the edit fields on tap. Existing lines start collapsed; a newly added line auto-expands. (Branch `v0/collapsible-statement-costing`.)
 - **Channel pricing (Finances):** each per-site fee row now uses the same pattern — collapsed header shows the site, unit, and a fee summary (e.g. "15% commission · 15% VAT", or an amber "No fee set — net = gross" for unconfigured sites). Configured sites start collapsed; unconfigured sites auto-expand to invite setup.
