@@ -87,6 +87,18 @@ export function CalendarScreen({ data }: { data: StayKnitData }) {
       .sort((a, b) => a.checkIn.localeCompare(b.checkIn))
   }, [shown, data.bookings])
 
+  // Blocked dates (feed "Not available" holds and host-added blocks). These
+  // render on the grid only in their own month, and are excluded from both
+  // booking lists above — so without their own list a far-future block (e.g.
+  // a hold dated next year) has no reachable home on the calendar. List every
+  // block for the units in view with a one-tap jump to its month.
+  const blocks = useMemo(() => {
+    const names = new Set(shown.map((p) => p.name))
+    return data.bookings
+      .filter((b) => b.status === 'block' && names.has(b.propertyName))
+      .sort((a, b) => a.checkIn.localeCompare(b.checkIn))
+  }, [shown, data.bookings])
+
   const clashes = useMemo(() => clashingIds(data.bookings), [data.bookings])
   const clashCount = useMemo(() => {
     const ids = clashingIds(shown.flatMap((p) => data.bookings.filter((b) => b.propertyName === p.name)))
@@ -340,6 +352,55 @@ export function CalendarScreen({ data }: { data: StayKnitData }) {
                 onSetPrice={() => setPricing(b)}
               />
             ))
+          )}
+        </div>
+      </div>
+
+      {/* Blocked dates — feed holds & host blocks; read-only, jump to see them */}
+      <div className="px-5 lg:px-8">
+        <div className="flex items-baseline justify-between">
+          <h2 className="font-sans text-base font-bold">Blocked dates</h2>
+          <span className="mono-label text-[10px] text-muted-foreground">
+            {blocks.length} {blocks.length === 1 ? 'block' : 'blocks'}
+          </span>
+        </div>
+        <p className="mono-label mt-1 text-[10px] leading-relaxed text-muted-foreground">
+          Unavailable holds from your listing sites &amp; manual blocks. They keep the dates closed everywhere &mdash; tap
+          one to jump to its month on the timeline.
+        </p>
+
+        <div className="mt-3 flex flex-col gap-2 pb-4">
+          {blocks.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border bg-surface-2/40 px-4 py-6 text-center">
+              <p className="text-[13px] text-muted-foreground">No blocked dates for this view.</p>
+              <p className="mono-label mt-1 text-[9px] text-muted-foreground">Add one from the Today tab.</p>
+            </div>
+          ) : (
+            blocks.map((b) => {
+              const [by, bm] = b.checkIn.split('-').map(Number)
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => setView({ year: by, month: bm })}
+                  className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 px-3.5 py-3 text-left transition-colors hover:border-primary"
+                >
+                  <span
+                    className="h-8 w-1 shrink-0 rounded-full"
+                    style={{ background: 'repeating-linear-gradient(45deg,#3a474b,#3a474b 3px,#1b2427 3px,#1b2427 6px)' }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <span className="truncate text-sm font-semibold">Blocked</span>
+                    <span className="mono-label block truncate text-[9px] text-muted-foreground">
+                      {b.propertyName} · {dateRange(b.checkIn, b.checkOut)}
+                    </span>
+                  </div>
+                  <span className="mono-label shrink-0 text-[10px] text-primary">
+                    Jump to {MONTH_NAMES[bm - 1]} {by}
+                  </span>
+                </button>
+              )
+            })
           )}
         </div>
       </div>
