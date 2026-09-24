@@ -82,7 +82,7 @@ export function OwnersScreen({ data, user }: { data: StayKnitData; user: { name:
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-5 pt-4 lg:px-8 lg:pt-6">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h1 className="font-sans text-2xl font-extrabold">Owners</h1>
+          <h1 className="font-sans text-2xl font-extrabold">Finances</h1>
           <p className="mono-label mt-1 text-[10px] text-muted-foreground">
             {data.owners.length} clients · {unitCount} units
           </p>
@@ -509,6 +509,7 @@ function EditOwnerModal({ owner, onDone, onClose }: { owner: OwnerClient; onDone
 // email on file plus a generated temporary password, and lands in a read-only
 // owner portal scoped to their units — their date requests reach this host.
 function OwnerLoginCard({ owner }: { owner: OwnerClient }) {
+  const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [sending, startSending] = useTransition()
   const [creds, setCreds] = useState<{ email: string; password: string } | null>(null)
@@ -525,6 +526,9 @@ function OwnerLoginCard({ owner }: { owner: OwnerClient }) {
       try {
         const result = await createOwnerLogin(owner.id)
         setCreds(result)
+        // Creating a login flips hasAccess server-side; refresh so the access
+        // toggle, statements, and owner-portal state reflect it immediately.
+        router.refresh()
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Could not create login')
       }
