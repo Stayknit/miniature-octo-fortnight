@@ -13,6 +13,7 @@ import {
   updateOwner,
 } from '@/app/actions/stayknit'
 import { CostingCard } from '@/components/host/costing-card'
+import { ChannelPricingRulesCard } from '@/components/channels/channel-pricing-rules-card'
 import { Field, Modal, inputClass } from '@/components/modal'
 import { useMoney, useCurrency } from '@/components/currency-context'
 import { currencySymbol } from '@/lib/currency'
@@ -125,6 +126,8 @@ export function OwnersScreen({ data, user }: { data: StayKnitData; user: { name:
           }
         />
       </div>
+
+      <ChannelPricingRulesCard />
 
       <div className="grid gap-2.5 lg:grid-cols-2">
         {data.owners.map((o) => {

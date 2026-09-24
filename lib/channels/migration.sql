@@ -96,3 +96,20 @@ CREATE INDEX IF NOT EXISTS "channel_audit_log_channel_idx"
   ON "channel_audit_log" ("channel");
 CREATE INDEX IF NOT EXISTS "channel_audit_log_created_idx"
   ON "channel_audit_log" ("createdAt" DESC);
+
+-- Per-site fee rule (added 2026-09-24 for manual reservation pricing). One row
+-- per (property, channel); percentages are basis points. Additive + IF NOT
+-- EXISTS, FK only to existing `property`.
+CREATE TABLE IF NOT EXISTS "channel_pricing_rule" (
+  "id" serial PRIMARY KEY,
+  "userId" text NOT NULL,
+  "propertyId" integer NOT NULL REFERENCES "property"("id") ON DELETE CASCADE,
+  "channel" text NOT NULL,
+  "currency" text NOT NULL DEFAULT 'ZAR',
+  "commissionBps" integer NOT NULL DEFAULT 0,
+  "vatBps" integer NOT NULL DEFAULT 0,
+  "createdAt" timestamp NOT NULL DEFAULT now(),
+  "updatedAt" timestamp NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "channel_pricing_rule_property_channel_idx"
+  ON "channel_pricing_rule" ("propertyId", "channel");

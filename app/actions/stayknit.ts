@@ -1545,6 +1545,12 @@ export async function syncFeedsForUser(
 
     for (const ev of parseIcal(text)) {
       if (!ev.start || !ev.end) continue
+      // A cancelled reservation. Most OTAs drop the VEVENT on cancel (handled by
+      // the reconciliation loop below), but some keep it with STATUS:CANCELLED.
+      // Treat that as absent — skip before recording its identity — so any row
+      // this feed still owns for it is deleted and the date frees up, instead of
+      // lingering as a confirmed stay blocking availability that is actually open.
+      if (ev.status === 'CANCELLED') continue
       const identity = eventIdentity(ev)
       currentIdentities.add(identity)
       const blocked = isBlockSummary(ev.summary)

@@ -7,6 +7,10 @@ export type IcalEvent = {
   summary: string
   start: string // yyyy-mm-dd
   end: string // yyyy-mm-dd (checkout / exclusive end)
+  // The VEVENT STATUS, upper-cased (e.g. 'CANCELLED'), when the feed sets one.
+  // Most OTAs drop a cancelled booking's event entirely, but some keep it with
+  // STATUS:CANCELLED — the importer uses this to free the date either way.
+  status?: string
 }
 
 // yyyymmdd or yyyymmddThhmmss[Z] -> yyyy-mm-dd.
@@ -99,6 +103,7 @@ function expandRecurrence(base: IcalEvent, rule: Rrule): IcalEvent[] {
         summary: base.summary,
         start,
         end,
+        status: base.status,
       })
     }
     start = stepIso(start, rule)
@@ -126,6 +131,7 @@ export function parseIcal(text: string): IcalEvent[] {
           summary: cur.summary ?? '',
           start: cur.start,
           end,
+          status: cur.status,
         }
         const rule = cur.rrule ? parseRrule(cur.rrule) : null
         if (rule) events.push(...expandRecurrence(base, rule))
@@ -142,6 +148,7 @@ export function parseIcal(text: string): IcalEvent[] {
       else if (key === 'DTSTART') cur.start = toIsoDate(val)
       else if (key === 'DTEND') cur.end = toIsoDate(val)
       else if (key === 'RRULE') cur.rrule = val
+      else if (key === 'STATUS') cur.status = val.toUpperCase()
     }
   }
   return events
