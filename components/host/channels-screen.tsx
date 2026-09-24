@@ -31,6 +31,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 export function ChannelsScreen({ data }: { data: StayKnitData }) {
   const live = data.channels.filter((c) => c.live).length
@@ -87,6 +88,19 @@ export function ChannelsScreen({ data }: { data: StayKnitData }) {
           </p>
         )}
       </div>
+
+      <Link
+        href="/channels-sync"
+        className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface-2 px-4 py-3.5 transition-colors hover:border-primary"
+      >
+        <div className="min-w-0">
+          <p className="text-[14px] font-semibold">Channel sync (beta)</p>
+          <p className="mono-label mt-0.5 text-[9px] text-muted-foreground">
+            Import reservations, review change history, connect API channels
+          </p>
+        </div>
+        <ArrowLeftRight size={16} className="shrink-0 text-primary" />
+      </Link>
 
       <CrossSiteBlockingGuide />
 
