@@ -223,16 +223,15 @@ export function PricingSection({ overrides }: { overrides?: PriceOverrides } = {
                         variant={featured ? 'primary' : 'outline'}
                         className="w-full"
                       >
-                        {isTrial ? 'Start free' : 'Start trial'}
+                        {isTrial ? 'Start free trial' : 'Get started'}
                         <ArrowRight className="size-4" />
                       </CtaLink>
                     )}
                   </div>
 
                   {!isTrial && !isEnterprise && (
-                    <p className="mt-2 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
-                      <Check className="size-3.5 shrink-0 text-primary" />
-                      14-day free trial · no card required
+                    <p className="mt-2 text-center text-xs text-muted-foreground">
+                      Prepaid · billed upfront via Paystack
                     </p>
                   )}
 
