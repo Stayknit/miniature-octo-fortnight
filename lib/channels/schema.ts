@@ -120,6 +120,33 @@ export const nightlyRate = pgTable(
   }),
 )
 
+// The host's saved fee structure for one unit on one booking site. Because each
+// site withholds a different commission, the rule is keyed per (property,
+// channel) and re-applied every time a host enters a reservation's gross amount
+// — that is what makes manual pricing "permanent per booking site". Percentages
+// are basis points (1500 = 15.00%); no money lives here (it drives the math in
+// lib/channels/pricing.ts, which writes financial_breakdown).
+export const channelPricingRule = pgTable(
+  'channel_pricing_rule',
+  {
+    id: serial('id').primaryKey(),
+    userId: text('userId').notNull(),
+    propertyId: integer('propertyId')
+      .notNull()
+      .references(() => property.id, { onDelete: 'cascade' }),
+    channel: text('channel').notNull(),
+    currency: text('currency').notNull().default('ZAR'),
+    commissionBps: integer('commissionBps').notNull().default(0),
+    vatBps: integer('vatBps').notNull().default(0),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  },
+  (t) => ({
+    // One rule per property per channel — the key the save action upserts on.
+    propertyChannelIdx: uniqueIndex('channel_pricing_rule_property_channel_idx').on(t.propertyId, t.channel),
+  }),
+)
+
 // An append-only record of every field a sync changed on a reservation. This is
 // what lets the UI show "checkout moved from X to Y after the last Airbnb sync"
 // and is limited to availability fields — money changes are audited separately.

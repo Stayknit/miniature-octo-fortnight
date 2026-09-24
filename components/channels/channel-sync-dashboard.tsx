@@ -2,15 +2,19 @@
 
 import {
   addChannelConnection,
+  clearReservationPrice,
   getReservationChanges,
   removeChannelConnection,
   setChannelEnabled,
+  setReservationPrice,
   syncChannelsNow,
   type ChannelSyncData,
   type ConnectionView,
+  type PricingRuleView,
   type ReservationView,
 } from '@/app/actions/channels-sync'
 import type { ChannelId, SyncOutcome } from '@/lib/channels/types'
+import { computeBreakdown, bpsToPercentLabel } from '@/lib/channels/pricing'
 import { formatMoney } from '@/lib/pricing'
 import { channelTint } from '@/lib/format'
 import { Modal, Field, inputClass } from '@/components/modal'
@@ -215,9 +219,11 @@ export function ChannelSyncDashboard({ data }: { data: ChannelSyncData }) {
                   <span className="shrink-0 text-right">
                     {r.financial ? (
                       <span className="text-[13px] font-semibold tabular-nums">{money(r.financial.netPayout)}</span>
+                    ) : r.status === 'block' ? (
+                      <span className="mono-label text-[9px] text-muted-foreground">—</span>
                     ) : (
-                      <span className="mono-label flex items-center gap-1 text-[9px] text-muted-foreground">
-                        <Lock size={10} /> No price
+                      <span className="mono-label flex items-center gap-1 text-[9px] text-primary">
+                        <Plus size={10} /> Add price
                       </span>
                     )}
                   </span>
@@ -258,7 +264,13 @@ export function ChannelSyncDashboard({ data }: { data: ChannelSyncData }) {
           onClose={() => setShowAdd(false)}
         />
       )}
-      {detail && <ReservationDetailModal reservation={detail} onClose={() => setDetail(null)} />}
+      {detail && (
+        <ReservationDetailModal
+          reservation={detail}
+          rules={data.pricingRules}
+          onClose={() => setDetail(null)}
+        />
+      )}
     </div>
   )
 }
@@ -452,15 +464,20 @@ function AddConnectionModal({
 
 function ReservationDetailModal({
   reservation,
+  rules,
   onClose,
 }: {
   reservation: ReservationView
+  rules: PricingRuleView[]
   onClose: () => void
 }) {
+  const router = useRouter()
   const [changes, setChanges] = useState<
     { field: string; oldValue: string | null; newValue: string | null; changedAt: string }[] | null
   >(null)
   const [loading, startTransition] = useTransition()
+  const [saving, startSave] = useTransition()
+  const [priceErr, setPriceErr] = useState<string | null>(null)
 
   function loadChanges() {
     if (changes) return
@@ -471,9 +488,50 @@ function ReservationDetailModal({
   }
 
   const f = reservation.financial
+  const isBlock = reservation.status === 'block'
+  // The saved fee rule for this exact unit + booking site, if any.
+  const rule = rules.find((r) => r.propertyId === reservation.propertyId && r.channel === reservation.channel) ?? null
+
+  // Gross is entered in whole currency units (Rands); stored/computed in cents.
+  const [grossRand, setGrossRand] = useState<string>(f ? String(Math.round(f.grossAmount / 100)) : '')
+  const grossCents = (Number(grossRand) || 0) * 100
+  const preview = computeBreakdown(grossCents, {
+    commissionBps: rule?.commissionBps ?? 0,
+    vatBps: rule?.vatBps ?? 0,
+  })
+  // Show the live preview while typing; otherwise fall back to the stored figure.
+  const shown = grossCents > 0 ? preview : f
+
+  function savePrice() {
+    setPriceErr(null)
+    startSave(async () => {
+      const res = await setReservationPrice({
+        channel: reservation.channel,
+        externalBookingId: reservation.externalBookingId,
+        grossAmount: grossCents,
+      })
+      if (!res.ok) {
+        setPriceErr(res.error)
+        return
+      }
+      router.refresh()
+      onClose()
+    })
+  }
+
+  function clearPrice() {
+    startSave(async () => {
+      await clearReservationPrice({
+        channel: reservation.channel,
+        externalBookingId: reservation.externalBookingId,
+      })
+      router.refresh()
+      onClose()
+    })
+  }
 
   return (
-    <Modal title={reservation.status === 'block' ? 'Blocked dates' : reservation.guestName || 'Reservation'} onClose={onClose}>
+    <Modal title={isBlock ? 'Blocked dates' : reservation.guestName || 'Reservation'} onClose={onClose}>
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-2">
           <Info label="Channel" value={reservation.channelLabel} />
@@ -486,25 +544,84 @@ function ReservationDetailModal({
 
         <div className="rounded-lg border border-border bg-surface-2 p-3.5">
           <p className="mono-label mb-2 text-[9px] text-muted-foreground">Financials</p>
-          {f ? (
-            <div className="flex flex-col gap-1.5 text-[13px]">
-              <Row label="Gross" value={money(f.grossAmount)} />
-              <Row label="Channel commission" value={`− ${money(f.channelCommission)}`} />
-              <Row label="Cleaning fee" value={money(f.cleaningFee)} />
-              <Row label="Tax / VAT" value={money(f.taxAmount)} />
-              <div className="my-1 h-px bg-border" />
-              <Row label="Net payout" value={money(f.netPayout)} strong />
-              <p className="mono-label mt-1 text-[8px] text-muted-foreground">
-                source: {f.source.replace(/_/g, ' ')}
-              </p>
-            </div>
-          ) : (
+          {isBlock ? (
             <div className="flex items-start gap-2">
               <Lock size={14} className="mt-0.5 shrink-0 text-muted-foreground" />
               <p className="text-[12px] leading-relaxed text-muted-foreground">
-                No price. This reservation came in over an availability feed, which never includes the amount a guest
-                paid. A payout will appear here once {reservation.channelLabel} is synced through a real channel API.
+                Blocked dates hold no payout — they only close availability.
               </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <p className="text-[12px] leading-relaxed text-muted-foreground">
+                iCal feeds never carry a price. Enter the amount the guest paid and{' '}
+                {rule ? "this unit's saved fee for " : 'your saved fee for '}
+                {reservation.channelLabel} does the rest.
+              </p>
+
+              <div>
+                <label className="mono-label mb-1 block text-[9px] text-muted-foreground">Amount guest paid (gross)</label>
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-1 items-center rounded-lg border border-border bg-surface px-3">
+                    <span className="mono-label text-[11px] text-muted-foreground">R</span>
+                    <input
+                      value={grossRand}
+                      onChange={(e) => setGrossRand(e.target.value.replace(/[^\d]/g, ''))}
+                      inputMode="numeric"
+                      placeholder="0"
+                      aria-label="Gross amount in Rands"
+                      className="w-full bg-transparent px-2 py-2.5 text-[14px] tabular-nums outline-none"
+                    />
+                  </div>
+                  <button
+                    onClick={savePrice}
+                    disabled={saving || grossCents <= 0}
+                    className="mono-label shrink-0 rounded-lg bg-primary px-3.5 py-2.5 text-[11px] text-primary-foreground transition-opacity disabled:opacity-50"
+                  >
+                    {saving ? 'Saving…' : f ? 'Update' : 'Save'}
+                  </button>
+                </div>
+              </div>
+
+              {rule ? (
+                <p className="mono-label text-[9px] text-muted-foreground">
+                  {reservation.channelLabel} fee applied: {bpsToPercentLabel(rule.commissionBps)} commission
+                  {rule.vatBps ? ` · ${bpsToPercentLabel(rule.vatBps)} VAT` : ''}.
+                </p>
+              ) : (
+                <p className="mono-label text-[9px] text-amber-600 dark:text-amber-400">
+                  No {reservation.channelLabel} fee rule yet — set one in Finances → Channel pricing so payouts compute
+                  automatically. Until then, net = gross.
+                </p>
+              )}
+
+              {shown && (
+                <div className="flex flex-col gap-1.5 border-t border-border pt-2.5 text-[13px]">
+                  <Row label="Gross" value={money(shown.grossAmount)} />
+                  <Row label="Channel commission" value={`− ${money(shown.channelCommission)}`} />
+                  <Row label="Tax / VAT" value={`− ${money(shown.taxAmount)}`} />
+                  <div className="my-1 h-px bg-border" />
+                  <Row label="Net payout" value={money(shown.netPayout)} strong />
+                  {f && grossCents <= 0 && (
+                    <div className="mt-1 flex items-center justify-between">
+                      <p className="mono-label text-[8px] text-muted-foreground">source: {f.source.replace(/_/g, ' ')}</p>
+                      <button
+                        onClick={clearPrice}
+                        disabled={saving}
+                        className="mono-label text-[8px] text-danger transition-opacity hover:underline disabled:opacity-50"
+                      >
+                        Clear price
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {priceErr && (
+                <p role="alert" className="rounded-lg border border-danger bg-danger/10 px-3 py-2 text-[11px] text-danger">
+                  {priceErr}
+                </p>
+              )}
             </div>
           )}
         </div>

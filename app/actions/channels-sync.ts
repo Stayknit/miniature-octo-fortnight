@@ -10,10 +10,12 @@ import {
   auditLog,
   changeLog,
   channelConnection,
+  channelPricingRule,
   financialBreakdown,
   reservation,
 } from '@/lib/channels/schema'
 import { ADAPTERS, syncAllConnections } from '@/lib/channels/sync-engine'
+import { computeBreakdown } from '@/lib/channels/pricing'
 import type { ChannelConnection, ChannelId, SyncOutcome } from '@/lib/channels/types'
 import { normalizeIcalUrl } from '@/lib/ical'
 import { assertSafeUrl } from '@/lib/ssrf'
@@ -76,12 +78,24 @@ export type AuditView = {
   createdAt: string
 }
 
+export type PricingRuleView = {
+  id: number
+  propertyId: number
+  propertyName: string
+  channel: ChannelId
+  channelLabel: string
+  commissionBps: number
+  vatBps: number
+  currency: string
+}
+
 export type ChannelSyncData = {
   properties: { id: number; name: string }[]
   connections: ConnectionView[]
   reservations: ReservationView[]
   audit: AuditView[]
   catalog: ChannelMeta[]
+  pricingRules: PricingRuleView[]
 }
 
 export type MutationResult = { ok: true } | { ok: false; error: string }
@@ -105,7 +119,7 @@ function labelFor(id: ChannelId): string {
 export async function getChannelSyncData(): Promise<ChannelSyncData> {
   const userId = await getUserId()
 
-  const [props, conns, resvs, fins, counts, audits] = await Promise.all([
+  const [props, conns, resvs, fins, counts, audits, rules] = await Promise.all([
     db.select({ id: property.id, name: property.name }).from(property).where(eq(property.userId, userId)),
     db.select().from(channelConnection).where(eq(channelConnection.userId, userId)).orderBy(channelConnection.createdAt),
     db
@@ -125,6 +139,7 @@ export async function getChannelSyncData(): Promise<ChannelSyncData> {
       .where(eq(reservation.userId, userId))
       .groupBy(reservation.propertyId, reservation.channel),
     db.select().from(auditLog).where(eq(auditLog.userId, userId)).orderBy(desc(auditLog.createdAt)).limit(25),
+    db.select().from(channelPricingRule).where(eq(channelPricingRule.userId, userId)),
   ])
 
   const nameById = new Map(props.map((p) => [p.id, p.name]))
@@ -183,7 +198,18 @@ export async function getChannelSyncData(): Promise<ChannelSyncData> {
     createdAt: a.createdAt.toISOString(),
   }))
 
-  return { properties: props, connections, reservations, audit, catalog: catalog() }
+  const pricingRules: PricingRuleView[] = rules.map((r) => ({
+    id: r.id,
+    propertyId: r.propertyId,
+    propertyName: nameById.get(r.propertyId) ?? 'Unknown unit',
+    channel: r.channel as ChannelId,
+    channelLabel: labelFor(r.channel as ChannelId),
+    commissionBps: r.commissionBps,
+    vatBps: r.vatBps,
+    currency: r.currency,
+  }))
+
+  return { properties: props, connections, reservations, audit, catalog: catalog(), pricingRules }
 }
 
 // Add a channel connection for one of the host's own units. iCal is usable
@@ -338,4 +364,186 @@ export async function getReservationChanges(
     newValue: r.newValue,
     changedAt: r.changedAt.toISOString(),
   }))
+}
+
+// Hard cap on a manually-entered gross so a fat-fingered figure can't create an
+// absurd payout. R1,000,000 in cents — well above any real short-stay booking.
+const MAX_GROSS_CENTS = 1_000_000_00
+
+// Attach (or update) a manual price on one imported reservation. The host types
+// the gross the guest paid; the site's saved fee rule (if any) derives the
+// commission/VAT/net. Written to financial_breakdown with source 'manual', so
+// it is NEVER overwritten by an iCal re-sync (the engine only writes financials
+// an adapter itself returns, and iCal returns none) — that is what makes the
+// figure permanent across syncs.
+export async function setReservationPrice(input: {
+  channel: ChannelId
+  externalBookingId: string
+  grossAmount: number // minor units (cents)
+}): Promise<MutationResult> {
+  const userId = await getUserId()
+  const gross = Math.round(input.grossAmount)
+  if (!Number.isFinite(gross) || gross <= 0) return { ok: false, error: 'Enter an amount greater than zero.' }
+  if (gross > MAX_GROSS_CENTS) return { ok: false, error: 'That amount looks too large — check the figure.' }
+
+  // The reservation must exist on this account before we can price it.
+  const [resv] = await db
+    .select()
+    .from(reservation)
+    .where(
+      and(
+        eq(reservation.userId, userId),
+        eq(reservation.channel, input.channel),
+        eq(reservation.externalBookingId, input.externalBookingId),
+      ),
+    )
+  if (!resv) return { ok: false, error: 'That reservation is not on your account.' }
+  if (resv.status === 'block') return { ok: false, error: 'Blocked dates hold no payout.' }
+
+  // Apply the per-site fee rule for this unit + channel, if one is saved.
+  const [rule] = await db
+    .select()
+    .from(channelPricingRule)
+    .where(
+      and(
+        eq(channelPricingRule.userId, userId),
+        eq(channelPricingRule.propertyId, resv.propertyId),
+        eq(channelPricingRule.channel, input.channel),
+      ),
+    )
+
+  const b = computeBreakdown(gross, {
+    commissionBps: rule?.commissionBps ?? 0,
+    vatBps: rule?.vatBps ?? 0,
+  })
+  const currency = rule?.currency ?? 'ZAR'
+  const now = new Date()
+
+  await db
+    .insert(financialBreakdown)
+    .values({
+      userId,
+      channel: input.channel,
+      externalBookingId: input.externalBookingId,
+      currency,
+      grossAmount: b.grossAmount,
+      channelCommission: b.channelCommission,
+      cleaningFee: b.cleaningFee,
+      taxAmount: b.taxAmount,
+      netPayout: b.netPayout,
+      source: 'manual',
+    })
+    .onConflictDoUpdate({
+      target: [financialBreakdown.channel, financialBreakdown.externalBookingId],
+      set: {
+        currency,
+        grossAmount: b.grossAmount,
+        channelCommission: b.channelCommission,
+        cleaningFee: b.cleaningFee,
+        taxAmount: b.taxAmount,
+        netPayout: b.netPayout,
+        source: 'manual',
+        updatedAt: now,
+      },
+    })
+  revalidatePath('/channels-sync')
+  return { ok: true }
+}
+
+// Remove a manually-entered price. Scoped so it only ever deletes a host's own
+// manual figure — an authoritative channel_api breakdown (future) is left alone.
+export async function clearReservationPrice(input: {
+  channel: ChannelId
+  externalBookingId: string
+}): Promise<MutationResult> {
+  const userId = await getUserId()
+  await db
+    .delete(financialBreakdown)
+    .where(
+      and(
+        eq(financialBreakdown.userId, userId),
+        eq(financialBreakdown.channel, input.channel),
+        eq(financialBreakdown.externalBookingId, input.externalBookingId),
+        eq(financialBreakdown.source, 'manual'),
+      ),
+    )
+  revalidatePath('/channels-sync')
+  return { ok: true }
+}
+
+// Save (or update) a unit's fee rule for one booking site. Percentages arrive
+// as basis points and are clamped to 0..100%. Keyed per (property, channel) so
+// each site keeps its own commission.
+export async function savePricingRule(input: {
+  propertyId: number
+  channel: ChannelId
+  commissionBps: number
+  vatBps: number
+}): Promise<MutationResult> {
+  const userId = await getUserId()
+  const [owned] = await db
+    .select({ id: property.id })
+    .from(property)
+    .where(and(eq(property.id, input.propertyId), eq(property.userId, userId)))
+  if (!owned) return { ok: false, error: 'That unit is not on your account.' }
+  if (!ADAPTERS[input.channel]) return { ok: false, error: 'Unknown channel.' }
+
+  const commissionBps = Math.min(10000, Math.max(0, Math.round(input.commissionBps)))
+  const vatBps = Math.min(10000, Math.max(0, Math.round(input.vatBps)))
+  const now = new Date()
+
+  await db
+    .insert(channelPricingRule)
+    .values({ userId, propertyId: input.propertyId, channel: input.channel, commissionBps, vatBps })
+    .onConflictDoUpdate({
+      target: [channelPricingRule.propertyId, channelPricingRule.channel],
+      set: { commissionBps, vatBps, updatedAt: now },
+    })
+  revalidatePath('/channels-sync')
+  return { ok: true }
+}
+
+export async function deletePricingRule(id: number): Promise<MutationResult> {
+  const userId = await getUserId()
+  await db
+    .delete(channelPricingRule)
+    .where(and(eq(channelPricingRule.id, id), eq(channelPricingRule.userId, userId)))
+  revalidatePath('/channels-sync')
+  return { ok: true }
+}
+
+export type ChannelPricingData = {
+  connections: { propertyId: number; propertyName: string; channel: ChannelId; channelLabel: string }[]
+  rules: PricingRuleView[]
+}
+
+// Lightweight scoped read for the Finances-tab rule card (fetched via SWR).
+// Returns every connected (unit, channel) pair plus any saved rules, so the
+// card can offer a rule for each site the host actually syncs.
+export async function getChannelPricingData(): Promise<ChannelPricingData> {
+  const userId = await getUserId()
+  const [props, conns, rules] = await Promise.all([
+    db.select({ id: property.id, name: property.name }).from(property).where(eq(property.userId, userId)),
+    db.select().from(channelConnection).where(eq(channelConnection.userId, userId)).orderBy(channelConnection.createdAt),
+    db.select().from(channelPricingRule).where(eq(channelPricingRule.userId, userId)),
+  ])
+  const nameById = new Map(props.map((p) => [p.id, p.name]))
+  return {
+    connections: conns.map((c) => ({
+      propertyId: c.propertyId,
+      propertyName: nameById.get(c.propertyId) ?? 'Unknown unit',
+      channel: c.channel as ChannelId,
+      channelLabel: labelFor(c.channel as ChannelId),
+    })),
+    rules: rules.map((r) => ({
+      id: r.id,
+      propertyId: r.propertyId,
+      propertyName: nameById.get(r.propertyId) ?? 'Unknown unit',
+      channel: r.channel as ChannelId,
+      channelLabel: labelFor(r.channel as ChannelId),
+      commissionBps: r.commissionBps,
+      vatBps: r.vatBps,
+      currency: r.currency,
+    })),
+  }
 }
