@@ -84,8 +84,10 @@ is passed, and any row the harness creates is deleted before it exits.
   Paystack.
 - `X-Frame-Options: SAMEORIGIN`.
 - Anonymous requests expose no workspace data.
-- AI help assistant rejects empty input (400) and resists prompt injection
-  (no system-prompt leak).
+- AI help assistant is **session-gated**: an anonymous call is rejected with
+  `401` *before* any model call (paid-model protection), so prompt injection
+  can't reach the model. The empty-input `400` and the output-filtering of any
+  system-prompt echo are authenticated-only concerns behind that gate.
 
 **Regulations / data integrity**
 - `user.email` has a UNIQUE constraint; zero case-insensitive duplicate emails.

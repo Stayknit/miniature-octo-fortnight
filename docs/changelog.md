@@ -6,6 +6,23 @@ A dated record of notable changes to the app, its security posture, and the lega
 
 ---
 
+## 2026-09-24
+
+### Full simulation re-run — 26/26 green after correcting a stale probe
+- **What:** Ran the self-contained protocol harness (`simulation/stayknit-protocol.mjs --live-auth`) against the running app. All public routes, security headers (CSP enforcing + Paystack allowlisted, `nosniff`, `Referrer-Policy`, `SAMEORIGIN`, no `X-Powered-By`), anonymous-data-isolation, live signup/enumeration-safety, and DB-integrity checks passed. The live-auth throwaway `@stayknit-sim.test` account was created and deleted within the run.
+- **Probe correction (not an app change):** the one initial failure — `AI help assistant: Empty question is rejected (400)` returning **401** — was a **stale test expectation**, not a bug. The route (`app/api/help-assistant/route.ts`) is intentionally **session-gated**: it checks auth → per-user rate limit → empty-input → model, so an anonymous caller (the harness) is correctly rejected with **401 before the model is ever reached** — the paid-model lockdown recorded in the 2026-09-21 entry. Updated the two AI probes to assert this stronger auth-gate reality (anonymous → 401, model never reached) and refreshed the runbook's "what it checks" section. No application code changed; the harness now reflects the real, more-secure behavior and exits 0 (26 passed, 0 failed).
+- **Action:** None.
+
+### Channel-sync date ranges now show the year (sync-confusion fix)
+- **What:** The `/channels-sync` dashboard's `dateRange` helper omitted the year, so a far-future block (e.g. **24 Sept 2027**) rendered as just "24 Sept" and — on 24 Sept 2026 — looked like it was happening *today*, giving the false impression the channel-sync list and the main calendar were out of sync. Added `year: 'numeric'`. Verified in the DB that both stores (`booking` and `reservation`) actually hold identical events; this was purely a display bug.
+- **Why:** Removes a real "calendar not in sync" support report that was actually a mislabeled date. (Merged to `main` in PR #11.)
+
+### Host "Owners" tab renamed to "Finances" + owner-login refresh fix
+- **What:** Renamed the host nav tab label and screen heading from **Owners** → **Finances** to stop confusion with the separate **Owner portal** login. The internal tab key and all owner-portal terminology are unchanged. Also fixed the one non-refreshing mutation on that tab: `OwnerLoginCard`'s `createOwnerLogin` had no `router` and never called `router.refresh()`, so the access toggle/statements/portal state stayed stale until a manual reload — added `useRouter` + `router.refresh()`, matching every other mutation in the app. Owner portal re-verified: still exactly 3 read-only tabs (Overview / Calendar / Statement), Overview and Statement both computed from the shared `buildOwnerStatement` builder so figures reconcile with the host Finances tab by construction.
+- **Why:** Naming clarity + closes the last known fire-and-forget sync gap on the Finances tab. (Merged to `main` in PR #11.)
+
+---
+
 ## 2026-09-22
 
 ### SARS taxpayer number removed from exported/printed owner documents
