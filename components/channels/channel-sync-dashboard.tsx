@@ -50,6 +50,7 @@ function dateRange(a: string, b: string): string {
     new Date(iso + 'T00:00:00Z').toLocaleDateString('en-ZA', {
       day: 'numeric',
       month: 'short',
+      year: 'numeric',
       timeZone: 'UTC',
     })
   return `${fmt(a)} → ${fmt(b)}`
