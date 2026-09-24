@@ -18,7 +18,7 @@ import { CalendarDays, CreditCard, Home, Radio, Users } from 'lucide-react'
 import { useState } from 'react'
 
 const TABS: TabDef[] = [
-  { key: 'today', label: 'Today', icon: <Home size={18} /> },
+  { key: 'today', label: 'Home', icon: <Home size={18} /> },
   { key: 'calendar', label: 'Calendar', icon: <CalendarDays size={18} /> },
   { key: 'channels', label: 'Channels', icon: <Radio size={18} /> },
   { key: 'owners', label: 'Finances', icon: <Users size={18} /> },

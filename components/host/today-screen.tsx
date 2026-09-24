@@ -2,6 +2,7 @@
 
 import { acknowledgeBooking, addBlock, addDirectBooking, cancelDirectBooking, removeProperty } from '@/app/actions/stayknit'
 import { Field, Modal, inputClass } from '@/components/modal'
+import { InstallPrompt } from '@/components/install-prompt'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { channelLogin, channelTint, dateRange, openChannelLogin } from '@/lib/format'
 import { useMoney, useCurrencySymbol } from '@/components/currency-context'
@@ -68,9 +69,12 @@ export function TodayScreen({ data, onNavigate }: { data: StayKnitData; onNaviga
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-5 pt-4 lg:gap-6 lg:px-8 lg:pt-6">
       {/* Top bar — color-mode switcher */}
       <div className="flex items-center justify-between gap-3">
-        <h1 className="mono-label text-[10px] text-muted-foreground">Today</h1>
+        <h1 className="mono-label text-[10px] text-muted-foreground">Home</h1>
         <ThemeToggle />
       </div>
+
+      {/* Install app — dismissible, hides when already installed/unsupported */}
+      <InstallPrompt variant="banner" />
 
       {/* Viewing switcher */}
       <button
@@ -278,6 +282,9 @@ function EmptyOnboarding({ onNavigate }: { onNavigate: (t: string) => void }) {
           onClick={() => onNavigate('owners')}
         />
       </div>
+
+      {/* Install app — hides when already installed/unsupported */}
+      <InstallPrompt variant="banner" />
     </div>
   )
 }
