@@ -10,7 +10,7 @@
 import useSWR from 'swr'
 import { useState } from 'react'
 import Link from 'next/link'
-import { Radio, ExternalLink } from 'lucide-react'
+import { Radio, ExternalLink, ChevronDown } from 'lucide-react'
 import {
   getChannelPricingData,
   savePricingRule,
@@ -97,8 +97,20 @@ function RuleRow({
   const [vat, setVat] = useState(pctFromBps(vatBps))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  // A configured site collapses to its fee summary; a site with no rule yet
+  // opens automatically so the host is prompted to set it — same collapse-to-
+  // summary pattern as the statement costing lines.
+  const configured = commissionBps > 0 || vatBps > 0
+  const [open, setOpen] = useState(!configured)
 
   const dirty = bpsFromPct(commission) !== commissionBps || bpsFromPct(vat) !== vatBps
+
+  // Compact summary of the saved fee for the collapsed header.
+  const summary = configured
+    ? [commissionBps > 0 ? `${commissionBps / 100}% commission` : null, vatBps > 0 ? `${vatBps / 100}% VAT` : null]
+        .filter(Boolean)
+        .join(' · ')
+    : 'No fee set — net = gross'
 
   async function save() {
     setSaving(true)
@@ -118,22 +130,43 @@ function RuleRow({
   }
 
   return (
-    <div className="rounded-lg border border-border bg-surface px-3.5 py-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-sm font-semibold">{channelLabel}</span>
-        <span className="mono-label shrink-0 text-[8px] text-muted-foreground">{propertyName}</span>
-      </div>
-      <div className="mt-2.5 flex items-end gap-2">
-        <PctField label="Commission" value={commission} onChange={setCommission} />
-        <PctField label="VAT" value={vat} onChange={setVat} />
-        <button
-          onClick={save}
-          disabled={saving || !dirty}
-          className="mono-label h-[38px] shrink-0 rounded-lg bg-primary px-3.5 text-[11px] text-primary-foreground transition-opacity disabled:opacity-40"
+    <div className="rounded-lg border border-border bg-surface">
+      {/* Collapsed summary header — tap to expand the fee fields */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label={`${open ? 'Collapse' : 'Expand'} ${channelLabel} fee for ${propertyName}`}
+        className="flex w-full items-center gap-2.5 rounded-lg px-3.5 py-3 text-left transition-colors hover:bg-surface-2/60"
+      >
+        <ChevronDown
+          size={15}
+          className={`shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold">{channelLabel}</span>
+          <span className="mono-label block truncate text-[8px] text-muted-foreground">{propertyName}</span>
+        </span>
+        <span
+          className={`mono-label shrink-0 text-[9px] ${configured ? 'text-primary' : 'text-amber-600 dark:text-amber-400'}`}
         >
-          {saving ? 'Saving…' : saved ? 'Saved' : 'Save'}
-        </button>
-      </div>
+          {summary}
+        </span>
+      </button>
+
+      {open && (
+        <div className="flex items-end gap-2 border-t border-border px-3.5 pb-3 pt-3">
+          <PctField label="Commission" value={commission} onChange={setCommission} />
+          <PctField label="VAT" value={vat} onChange={setVat} />
+          <button
+            onClick={save}
+            disabled={saving || !dirty}
+            className="mono-label h-[38px] shrink-0 rounded-lg bg-primary px-3.5 text-[11px] text-primary-foreground transition-opacity disabled:opacity-40"
+          >
+            {saving ? 'Saving…' : saved ? 'Saved' : 'Save'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

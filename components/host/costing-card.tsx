@@ -4,7 +4,7 @@ import { addCostLine, deleteCostLine, updateCostLine } from '@/app/actions/stayk
 import { useCurrencySymbol } from '@/components/currency-context'
 import { COST_KINDS, type CostKind } from '@/lib/costing'
 import type { CostLine } from '@/lib/types'
-import { Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, Plus, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 
@@ -60,6 +60,20 @@ export function CostingCard({
   const [commissionText, setCommissionText] = useState(String(commission))
   const [, startTransition] = useTransition()
 
+  // Each cost line collapses to a compact summary so a host with many fees
+  // isn't faced with one long form. Existing lines start collapsed; a freshly
+  // added line opens automatically so it can be edited straight away.
+  const [expanded, setExpanded] = useState<Set<number>>(() => new Set())
+
+  function toggleExpanded(id: number) {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   // Persist, then refresh the route so the server re-reads the cost lines and
   // the statement (which renders from the refreshed `data`, not this card's
   // local state) reflects the edit. Without the refresh the DB updates but the
@@ -94,9 +108,19 @@ export function CostingCard({
   function add() {
     startTransition(async () => {
       const created = await addCostLine()
-      if (created) setRows((prev) => [...prev, toRow(created)])
+      if (created) {
+        setRows((prev) => [...prev, toRow(created)])
+        setExpanded((prev) => new Set(prev).add(created.id))
+      }
       router.refresh()
     })
+  }
+
+  // One-line summary of a line's charge for the collapsed header, e.g. "15%",
+  // "R500 / booking", or "R500".
+  function summary(r: Row): string {
+    if (r.kind === 'percent') return `${r.value}%`
+    return `${symbol}${r.value}${r.perBooking ? ' / booking' : ''}`
   }
 
   function remove(id: number) {
@@ -201,8 +225,41 @@ export function CostingCard({
         </p>
       ) : (
         <div className="flex flex-col gap-2">
-          {rows.map((r) => (
-            <div key={r.id} className="rounded-lg border border-border bg-surface-2 p-2.5">
+          {rows.map((r) => {
+            const isOpen = expanded.has(r.id)
+            return (
+            <div key={r.id} className="rounded-lg border border-border bg-surface-2">
+              {/* Collapsed summary header — tap to expand the editable fields */}
+              <button
+                type="button"
+                onClick={() => toggleExpanded(r.id)}
+                aria-expanded={isOpen}
+                aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${r.label || 'cost line'}`}
+                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left transition-colors hover:bg-surface-3/50"
+              >
+                <ChevronDown
+                  size={15}
+                  className={`shrink-0 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                />
+                <span className={`min-w-0 flex-1 truncate text-[13px] font-medium ${r.enabled ? '' : 'text-muted-foreground line-through'}`}>
+                  {r.label || 'Untitled line'}
+                </span>
+                {r.propertyName && (
+                  <span className="mono-label hidden shrink-0 rounded bg-surface-3 px-1.5 py-0.5 text-[8px] text-muted-foreground sm:inline">
+                    {r.propertyName}
+                  </span>
+                )}
+                {r.vatable && vatEnabled && (
+                  <span className="mono-label shrink-0 rounded bg-surface-3 px-1.5 py-0.5 text-[8px] text-muted-foreground">
+                    VAT
+                  </span>
+                )}
+                <span className="shrink-0 text-[13px] font-semibold tabular-nums text-foreground">{summary(r)}</span>
+                {!r.enabled && <span className="mono-label shrink-0 text-[8px] text-muted-foreground">off</span>}
+              </button>
+
+              {isOpen && (
+              <div className="border-t border-border px-2.5 pb-2.5 pt-2.5">
               <div className="flex items-center gap-2">
                 <input
                   value={r.label}
@@ -299,8 +356,11 @@ export function CostingCard({
               >
                 {r.enabled ? 'Disable line' : 'Enable line'}
               </button>
+              </div>
+              )}
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
