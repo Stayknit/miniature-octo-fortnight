@@ -229,6 +229,13 @@ export function PricingSection({ overrides }: { overrides?: PriceOverrides } = {
                     )}
                   </div>
 
+                  {!isTrial && !isEnterprise && (
+                    <p className="mt-2 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
+                      <Check className="size-3.5 shrink-0 text-primary" />
+                      14-day free trial · no card required
+                    </p>
+                  )}
+
                   <p className="mt-4 border-t border-border pt-4 text-sm leading-relaxed text-muted-foreground">
                     {plan.blurb}
                   </p>
