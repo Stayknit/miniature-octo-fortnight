@@ -8,6 +8,12 @@ A dated record of notable changes to the app, its security posture, and the lega
 
 ## 2026-09-24
 
+### Cancellation sync — handle feeds that retain STATUS:CANCELLED
+- **What:** `parseIcal` never read the iCal `STATUS` property, so the live importer treated a `STATUS:CANCELLED` VEVENT as a normal confirmed stay. Now `parseIcal` surfaces `status`, and `syncFeedsForUser` skips a `CANCELLED` event so any stored row it owns is deleted and the date frees.
+- **Why it matters:** When a guest cancels, Airbnb and Booking.com *remove* the event from the .ics export — that case already synced correctly (the reconciliation loop deletes the vanished row). But some feeds instead keep the event flagged `STATUS:CANCELLED`; those were staying on the calendar as a confirmed booking, silently blocking a date that was actually free (a lost-booking risk, the inverse of a double-booking). Both cancel styles now free the date.
+- **Scope/safety:** `parseIcal` is used only by the live legacy importer; the channel-sync beta adapter uses `node-ical` and already mapped `CANCELLED`. Additive (new optional `IcalEvent.status`), no schema/data change. tsc clean; parse unit-tested (CONFIRMED/CANCELLED surfaced, no-status defaults undefined/kept).
+- **Note on booking refunds:** StayKnit does not process guest payments for stays (guests pay the OTA, or the host directly), so there is no guest-refund money flow to sync — a cancellation simply frees the date and drops the (host-entered) payout for that stay. The app's refund system (`refundRequest` table, `admin-refunds.ts`, Paystack `refund.processed`) is entirely for the host's own **subscription**, not bookings.
+
 ### Manual reservation pricing + per-site fee rules
 - **What:** iCal-imported channel reservations carry dates only (feeds never include the amount a guest paid), so they always showed "No price". Added a way to fill that in by hand and make it stick:
   - **Channel sync screen** — every non-block reservation now shows an "Add price" affordance; the detail modal has a gross-amount field with a live payout breakdown (gross − commission − VAT = net). Saving writes a `financial_breakdown` row with `source: 'manual'`.
