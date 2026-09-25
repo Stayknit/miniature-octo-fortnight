@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 import { Archivo, IBM_Plex_Mono } from 'next/font/google'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import { PWARegister } from '@/components/pwa-register'
 import { CookieConsent } from '@/components/cookie-consent'
 import './globals.css'
@@ -158,6 +159,7 @@ export default function RootLayout({
         {children}
         <PWARegister />
         <CookieConsent analyticsEnabled={process.env.NODE_ENV === 'production'} />
+        <SpeedInsights />
       </body>
     </html>
   )
